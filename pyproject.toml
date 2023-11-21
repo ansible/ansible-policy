@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ansible-policy-eval"
+description = "My package description"
+readme = "README.rst"
+requires-python = ">=3.7"
+keywords = ["one", "two"]
+license = {text = "Apache License 2.0"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "sage-scan@git+https://github.com/IBM/sage",
+
+    # install sage-proecss manually
+    # "sage-process@git+https://github.ibm.com/ansible-risk-insight/sage-process",
+
+    # install pb-refine manually
+    # "pb-refine@git+https://github.ibm.com/ansible-risk-insight/pb-refine",
+
+]
+
+dynamic = ["version"]
+
+[tool.setuptools.dynamic]
+version = {attr = "ansible_gatekeeper.__version__.__version__"}
+
+[tool.setuptools]
+py-modules = ["ansible_gatekeeper"]
+packages = ["ansible_gatekeeper"]
+
+[tool.black]
+line-length = 150
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
+
+[tool.flake8]
+ignore = "E203, W503,"
+max-line-length = 150

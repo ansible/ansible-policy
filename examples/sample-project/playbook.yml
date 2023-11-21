@@ -1,0 +1,26 @@
+- hosts: localhost
+  tasks:
+    - name: Include OS-specific variables.
+      include_vars: "{{ ansible_os_family }}.yml"
+
+    - name: Check if GitLab configuration file already exists.
+      stat: path=/etc/gitlab/gitlab.rb
+      register: gitlab_config_file
+
+    - name: Check if GitLab is already installed.
+      stat: path=/usr/bin/gitlab-ctl
+      register: gitlab_file
+
+    # Configure firewall with community.general module 
+    - name: Configure firewall
+      ufw:
+        rule: limit
+        port: ssh
+        proto: tcp
+
+    # not listed in requirements.yml
+    - name: Create mongodb user
+      community.mongodb.mongodb_user:
+        database: db-not-allowed
+        name: john
+        state: present

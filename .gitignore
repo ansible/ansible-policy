@@ -1,0 +1,8 @@
+__pycache__
+*.egg-info
+build
+dist
+venv
+output.json
+galaxy_data.json
+test
