@@ -21,6 +21,6 @@
     # not listed in requirements.yml
     - name: Create mongodb user
       community.mongodb.mongodb_user:
-        database: db-not-allowed
+        database: my-db
         name: john
         state: present

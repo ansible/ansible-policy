@@ -3,7 +3,10 @@ import jsonpickle
 from dataclasses import dataclass, field
 from typing import List, Dict
 
-from ansible_gatekeeper.utils import get_module_name_from_task
+from ansible_gatekeeper.utils import (
+    get_module_name_from_task,
+    load_galaxy_data,
+)
 from sage_scan.pipeline import SagePipeline
 from sage_scan.models import (
     BecomeInfo,
@@ -42,19 +45,19 @@ class PolicyInput(object):
     # files
     # others?
 
-    def from_sage_project(project: SageProject):
+    def from_sage_project(project: SageProject, galaxy_data: dict=None):
         p_input = PolicyInput()
         p_input.source = project.source
         p_input.playbooks = {
-            playbook.filepath: Playbook.from_sage_object(obj=playbook, proj=project)
+            playbook.filepath: Playbook.from_sage_object(obj=playbook, proj=project, galaxy=galaxy_data)
             for playbook in project.playbooks
         }
         p_input.taskfiles = {
-            taskfile.filepath: TaskFile.from_sage_object(obj=taskfile, proj=project)
+            taskfile.filepath: TaskFile.from_sage_object(obj=taskfile, proj=project, galaxy=galaxy_data)
             for taskfile in project.taskfiles
         }
         p_input.roles = {
-            role.filepath: Role.from_sage_object(obj=role, proj=project)
+            role.filepath: Role.from_sage_object(obj=role, proj=project, galaxy=galaxy_data)
             for role in project.roles
         }
         if project.projects:
@@ -82,29 +85,31 @@ class PolicyInput(object):
     
 
 # make policy input data by scanning target project
-def make_policy_input(target_path: str, metadata: dict={}) -> dict:
+def make_policy_input(target_path: str, metadata: dict={}, galaxy_data_path: dict={}) -> dict:
     fpath = ""
     dpath = ""
     if os.path.isfile(target_path):
         fpath = os.path.abspath(target_path)
     else:
         dpath = os.path.abspath(target_path)
+
+    galaxy_data = load_galaxy_data(fpath=galaxy_data_path)
     
     policy_input = None
     if fpath:
         yaml_str = ""
         with open(fpath, "r") as file:
             yaml_str = file.read()
-        policy_input = scan_project(yaml_str=yaml_str, metadata=metadata)
+        policy_input = scan_project(yaml_str=yaml_str, metadata=metadata, galaxy_data=galaxy_data)
     elif dpath:
-        policy_input = scan_project(project_dir=dpath, metadata=metadata)
+        policy_input = scan_project(project_dir=dpath, metadata=metadata, galaxy_data=galaxy_data)
     else:
         raise ValueError(f"`{target_path}` does not exist")
     
     return policy_input
 
 
-def scan_project(yaml_str: str="", project_dir: str="", metadata: dict=None, output_dir: str=""):
+def scan_project(yaml_str: str="", project_dir: str="", metadata: dict=None, galaxy_data: dict=None, output_dir: str=""):
     _metadata = {}
     if metadata:
         _metadata = metadata
@@ -126,7 +131,7 @@ def scan_project(yaml_str: str="", project_dir: str="", metadata: dict=None, out
     if not project:
         raise ValueError("failed to scan the target project; project is None")
 
-    policy_input = PolicyInput.from_sage_project(project=project)
+    policy_input = PolicyInput.from_sage_project(project=project, galaxy_data=galaxy_data)
     if not policy_input:
         raise ValueError("failed to scan the target project; policy_input is None")
     
@@ -174,14 +179,14 @@ class Task(object):
     module_fqcn: str = ""
 
     @classmethod
-    def from_sage_object(cls, obj: SageTask):
+    def from_sage_object(cls, obj: SageTask, galaxy: dict=None):
         new_obj = Task()
         if hasattr(obj, "__dict__"):
             for k, v in obj.__dict__.items():
                 if hasattr(new_obj, k):
                     setattr(new_obj, k, v)
 
-        module_fqcn, _ = get_module_name_from_task(task=obj)
+        module_fqcn, _ = get_module_name_from_task(task=obj, galaxy=galaxy)
         new_obj.module_fqcn = module_fqcn
 
         return new_obj
@@ -203,7 +208,7 @@ class Playbook(object):
     tasks: List[Task] = field(default_factory=list)
     
     @classmethod
-    def from_sage_object(cls, obj: SagePlaybook, proj: SageProject):
+    def from_sage_object(cls, obj: SagePlaybook, proj: SageProject, galaxy: dict=None):
         new_obj = Playbook()
         if hasattr(obj, "__dict__"):
             for k, v in obj.__dict__.items():
@@ -211,7 +216,7 @@ class Playbook(object):
                     setattr(new_obj, k, v)
 
         tasks = get_tasks_in_playbook(playbook=obj, project=proj)
-        new_obj.tasks = [Task.from_sage_object(task) for task in tasks]
+        new_obj.tasks = [Task.from_sage_object(task, galaxy) for task in tasks]
 
         return new_obj
 
@@ -234,7 +239,7 @@ class TaskFile(object):
     tasks: List[Task] = field(default_factory=list)
 
     @classmethod
-    def from_sage_object(cls, obj: SageTaskFile, proj: SageProject):
+    def from_sage_object(cls, obj: SageTaskFile, proj: SageProject, galaxy: dict=None):
         new_obj = TaskFile()
         if hasattr(obj, "__dict__"):
             for k, v in obj.__dict__.items():
@@ -242,7 +247,7 @@ class TaskFile(object):
                     setattr(new_obj, k, v)
 
         tasks = get_tasks_in_taskfile(taskfile=obj, project=proj)
-        new_obj.tasks = [Task.from_sage_object(task) for task in tasks]
+        new_obj.tasks = [Task.from_sage_object(task, galaxy) for task in tasks]
 
         return new_obj
     
@@ -274,7 +279,7 @@ class Role(object):
     taskfiles: Dict[str, TaskFile] = field(default_factory=dict)
     
     @classmethod
-    def from_sage_object(cls, obj: SageRole, proj: SageProject):
+    def from_sage_object(cls, obj: SageRole, proj: SageProject, galaxy: dict=None):
         new_obj = Role()
         if hasattr(obj, "__dict__"):
             for k, v in obj.__dict__.items():
@@ -283,7 +288,7 @@ class Role(object):
 
         sage_taskfiles = get_taskfiles_in_role(role=obj, project=proj)
         new_obj.taskfiles = {
-            sage_taskfile.filepath: TaskFile.from_sage_object(obj=sage_taskfile, proj=proj)
+            sage_taskfile.filepath: TaskFile.from_sage_object(obj=sage_taskfile, proj=proj, galaxy=galaxy)
             for sage_taskfile in sage_taskfiles
         }
 
@@ -316,7 +321,7 @@ class Project(object):
     version: str = ""
 
     @classmethod
-    def from_sage_object(cls, obj: SageObjProject):
+    def from_sage_object(cls, obj: SageObjProject, galaxy: dict=None):
         new_obj = Role()
         if hasattr(obj, "__dict__"):
             for k, v in obj.__dict__.items():
