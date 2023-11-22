@@ -1,5 +1,7 @@
 import os
 import jsonpickle
+import json
+import yaml
 from dataclasses import dataclass, field
 from typing import List, Dict
 
@@ -10,6 +12,7 @@ from ansible_gatekeeper.utils import (
 from sage_scan.pipeline import SagePipeline
 from sage_scan.models import (
     BecomeInfo,
+    File as SageFile,
     Task as SageTask,
     TaskFile as SageTaskFile,
     Role as SageRole,
@@ -21,6 +24,8 @@ from sage_scan.process.utils import (
     get_tasks_in_playbook,
     get_tasks_in_taskfile,
     get_taskfiles_in_role,
+    get_call_sequence_by_entrypoint,
+    get_call_tree_by_entrypoint,
 )
 
 
@@ -34,18 +39,50 @@ with open(_util_rego_path, "r") as util_rego_file:
 
 
 @dataclass
+class RuntimeData(object):
+    extra_vars: dict = field(default_factory=dict)
+    env_vars: dict = field(default_factory=dict)
+    inventory: dict = field(default_factory=dict)
+
+    @staticmethod
+    def load(dir: str):
+        rd = RuntimeData()
+        rd.extra_vars = rd.load_file_data(os.path.join(dir, "env/extravars"))
+        rd.env_vars = rd.load_file_data(os.path.join(dir, "env/envvars"))
+        rd.inventory = rd.load_file_data(os.path.join(dir, "inventory/hosts"))
+        return rd
+
+    def load_file_data(self, path: str):
+        data = {}
+        if os.path.exists(path):
+            with open(path, "r") as file:
+                try:
+                    data = yaml.safe_load(file)
+                except Exception:
+                    pass
+        return data
+
+
+@dataclass
 class PolicyInput(object):
     source: dict = field(default_factory=dict)
     project: any = None
     playbooks: dict = field(default_factory=dict)
     taskfiles: dict = field(default_factory=dict)
     roles: dict = field(default_factory=dict)
+    vars_files: dict = field(default_factory=dict)
+
+    extra_vars: dict = field(default_factory=dict)
+
+    variables: dict = field(default_factory=dict)
+
     # TODO: imeplement attrs below
     # modules
     # files
     # others?
 
-    def from_sage_project(project: SageProject, galaxy_data: dict=None):
+    @staticmethod
+    def from_sage_project(project: SageProject, galaxy_data: dict=None, runtime_data: RuntimeData=None):
         p_input = PolicyInput()
         p_input.source = project.source
         p_input.playbooks = {
@@ -62,6 +99,25 @@ class PolicyInput(object):
         }
         if project.projects:
             p_input.project = project.projects[0]
+
+        files = {}
+        for file in project.files:
+            files[file.filepath] = File.from_sage_object(obj=file)
+        p_input.vars_files = files
+
+        if runtime_data:
+            p_input.extra_vars = runtime_data.extra_vars
+
+        variables = {}
+        for file in p_input.vars_files.values():
+            if file.data:
+                variables.update(file.data)
+        
+        if p_input.extra_vars:
+            variables.update(p_input.extra_vars)
+
+        p_input.variables = variables
+
         return p_input
             
 
@@ -95,21 +151,23 @@ def make_policy_input(target_path: str, metadata: dict={}, galaxy_data_path: dic
 
     galaxy_data = load_galaxy_data(fpath=galaxy_data_path)
     
+    runtime_data = RuntimeData.load(dir=target_path)
+
     policy_input = None
     if fpath:
         yaml_str = ""
         with open(fpath, "r") as file:
             yaml_str = file.read()
-        policy_input = scan_project(yaml_str=yaml_str, metadata=metadata, galaxy_data=galaxy_data)
+        policy_input = scan_project(yaml_str=yaml_str, metadata=metadata, galaxy_data=galaxy_data, runtime_data=runtime_data)
     elif dpath:
-        policy_input = scan_project(project_dir=dpath, metadata=metadata, galaxy_data=galaxy_data)
+        policy_input = scan_project(project_dir=dpath, metadata=metadata, galaxy_data=galaxy_data, runtime_data=runtime_data)
     else:
         raise ValueError(f"`{target_path}` does not exist")
     
     return policy_input
 
 
-def scan_project(yaml_str: str="", project_dir: str="", metadata: dict=None, galaxy_data: dict=None, output_dir: str=""):
+def scan_project(yaml_str: str="", project_dir: str="", metadata: dict=None, galaxy_data: dict=None, runtime_data: RuntimeData=None, output_dir: str=""):
     _metadata = {}
     if metadata:
         _metadata = metadata
@@ -131,13 +189,43 @@ def scan_project(yaml_str: str="", project_dir: str="", metadata: dict=None, gal
     if not project:
         raise ValueError("failed to scan the target project; project is None")
 
-    policy_input = PolicyInput.from_sage_project(project=project, galaxy_data=galaxy_data)
+    policy_input = PolicyInput.from_sage_project(project=project, galaxy_data=galaxy_data, runtime_data=runtime_data)
     if not policy_input:
         raise ValueError("failed to scan the target project; policy_input is None")
     
     policy_input_json = policy_input.to_json()
     return policy_input_json
 
+
+@dataclass
+class File(object):
+    type: str = "file"
+    name: str = ""
+    key: str = ""
+    local_key: str = ""
+    role: str = ""
+    collection: str = ""
+
+    body: str = ""
+    # data: any = None
+    encrypted: bool = False
+    error: str = ""
+    label: str = ""
+    filepath: str = ""
+
+    data: dict = field(default_factory=dict)
+
+    @classmethod
+    def from_sage_object(cls, obj: SageFile):
+        new_obj = Task()
+        if hasattr(obj, "__dict__"):
+            for k, v in obj.__dict__.items():
+                if hasattr(new_obj, k):
+                    setattr(new_obj, k, v)
+
+        new_obj.data = json.loads(obj.data)
+
+        return new_obj
 
 @dataclass
 class Task(object):
@@ -179,7 +267,7 @@ class Task(object):
     module_fqcn: str = ""
 
     @classmethod
-    def from_sage_object(cls, obj: SageTask, galaxy: dict=None):
+    def from_sage_object(cls, obj: SageTask, proj: SageProject, galaxy: dict=None):
         new_obj = Task()
         if hasattr(obj, "__dict__"):
             for k, v in obj.__dict__.items():

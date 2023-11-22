@@ -4,5 +4,5 @@ build
 dist
 venv
 output.json
-galaxy_data.json
+*.bak
 test
