@@ -27,3 +27,12 @@ request_http_data_source(url) := ext_data {
     })
     ext_data := resp.body
 }
+
+
+resolve_var(ref, vars) := name {
+    name_0 := ref
+    name_1 := replace(name_0, "{{", "")
+    name_2 := replace(name_1, "}}", "")
+    name_3 := replace(name_2, " ", "")
+    name := vars[name_3]
+}
