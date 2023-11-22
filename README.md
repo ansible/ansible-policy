@@ -58,7 +58,7 @@ detected_forbidden_databases = [
 
 ### 5. run `ansible-gatekeeper` for **project directory**
 
-The example project is using an allowed database `allowed-db-1` (in [vars.yml](./examples/sample1/vars.yml)), so no policy violations are reported.
+The example project is using an allowed database `allowed-db-1` (in [vars.yml](./examples/sample1/project/vars.yml)), so no policy violations are reported.
 
 ```bash
 $ ansible-gatekeeper -t project -d examples/sample1/project -r examples/sample1.rego
