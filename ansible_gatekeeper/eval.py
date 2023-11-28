@@ -48,8 +48,9 @@ def main():
     output_path = args.output
 
     input_data = None
+    runner_jobdata_str = None
     if eval_type == EvalTypeJobdata:
-        input_data = load_input_from_jobdata(jobdata_path=jobdata_path)
+        input_data, runner_jobdata_str = load_input_from_jobdata(jobdata_path=jobdata_path)
     elif eval_type == EvalTypeProject:
         input_data = load_input_from_project_dir(project_dir=project_dir)
     else:
@@ -65,12 +66,17 @@ def main():
             ofile.write(json.dumps(result))
     else:
         disp_result = {k: v for k, v in result.items() if not k.startswith("_")}
-        print(json.dumps(disp_result, indent=2))
+        print(json.dumps(disp_result, indent=2), file=sys.stderr)
         true_exists = any([v for k, v in result.items() if isinstance(v, bool)])
         if true_exists:
+            msg = "[FAILURE] Policy violation detected!"
+            print("\033[91m{}\033[00m".format(msg), file=sys.stderr)
             sys.exit(1)
         else:
-            sys.exit(0)
+            msg = "[SUCCESS] All policy checks passed!"
+            print("\033[96m{}\033[00m".format(msg), file=sys.stderr)
+            if runner_jobdata_str:
+                print(runner_jobdata_str)
 
 
 if __name__ == "__main__":

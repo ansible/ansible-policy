@@ -17,17 +17,71 @@ $ cd ansible-gatekeeper
 $ pip install -e .
 ```
 
-### 4. check an example rego policy
+### 4. run `ansible-gatekeeper` for **project directory**
 
-The example policy below checks if database name which is used in a project is allowed or not.
+ansible-gatekeeper can be used for checking Ansible project contents at develop time.
 
-`using_forbidden_database` is a boolean which represents whether the forbidden database is used or not.
+For example, the [example policy](examples/develop/policy_satisfy_requirements.rego) checks if all the dependencies are correctly specified in the requirements.yml.
 
-`not_allowed_databases` is a list of detected database names that are not allowed.
+```rego
+package sample_ansible_policy
 
+import future.keywords.if
+import future.keywords.in
+import future.keywords.every
+
+requirements_yml = [req.name | req := input.project.requirements.collections[_]]
+_builtin_and_deps := array.concat(["ansible.builtin"], requirements_yml)
+
+detect_missing_dependencies(task) := collection {
+    fqcn := task.module_fqcn
+    collection := get_module_collection_name(fqcn)
+    not collection in _builtin_and_deps
+}
+
+get_module_collection_name(fqcn) := coll {
+    contains(fqcn, ".")
+    parts := split(fqcn, ".")
+    coll := concat(".", [parts[0], parts[1]])
+}
+
+missing_dependencies[x] {
+    task := input.taskfiles[_].tasks[_]
+    x := detect_missing_dependencies(task)
+}
+
+has_missing_dependencies = true if {
+    count(missing_dependencies) > 0
+} else = false
+```
+
+The example project is a role which uses `community.general` and `community.crypto` as non-builtin dependencies, but its requirements.yml only speciies `community.general`.
+
+Then ansible-gatekeeper can detect the missing dependency like the following.
 
 ```bash
-$ cat examples/runtime/policy.rego
+$ ansible-gatekeeper -t project -p examples/develop/firewall_role \
+    -r examples/develop/policy_satisfy_requirements.rego
+{
+  "has_missing_dependencies": true,
+  "missing_dependencies": [
+    "community.crypto"
+  ],
+  "requirements_yml": [
+    "community.general"
+  ]
+}
+[FAILURE] Policy violation detected!
+```
+
+
+### 5. run `ansible-gatekeeper` for **ansible-runner jobdata**
+
+ansible-gatekeeper can be used for checking runtime jobdata created by `ansibler-runner`, and this feature is useful to stop the playbook execution when policy violation is detected.
+
+The [example policy](examples/runtime/policy_use_allowed_dbs_only.rego) is a policy to check if all database names used in tasks are allowed or not.
+
+```rego
 package sample_ansible_policy
 
 import future.keywords.if
@@ -40,44 +94,73 @@ _target_module = "community.mongodb.mongodb_user"
 find_not_allowed_db(task) := database {
     fqcn := task.module_fqcn
     fqcn == _target_module
-    database := resolve_var(task.module_options.database, input.variables)
+    database := resolve_var(task.module_options.database, input.variables) # <== variable resolution
     not database in _allowed_databases
 }
 
-not_allowed_databases := found {
-    found := [
-        find_not_allowed_db(task) | task := input.playbooks[_].tasks[_]; find_not_allowed_db(task)
-    ]
+not_allowed_databases[x] {
+    task := input.playbooks[_].tasks[_] # <== loaded from project content
+    x := find_not_allowed_db(task)
 }
 
 using_forbidden_database = true if {
-    found := not_allowed_databases
-    count(found) > 0
+    count(not_allowed_databases) > 0
 } else = false
-
 ```
 
+The example directory has [env/extravars](./examples/runtime/target/env/extravars) which `ansible-runner` command loads as variables at runtime, so this example uses `not-allowed-db` database which is not allowed.
 
-### 5. run `ansible-gatekeeper` for **project directory**
-
-WIP
-```
-
-
-### 6. run `ansible-gatekeeper` for **ansible-runner jobdata**
-
-ansible-gatekeeper can be used for checking runtime jobdata created by `ansibler-runner`, and this feature is useful to stop the playbook execution when policy violation is detected.
-
-The example directory has [env/extravars](./examples/runtime/target/env/extravars) which `ansible-runner` command loads as variables at runtime, so this example uses `my-db` database which is not allowed.
-
-Then ansible-gatekeeper can detect it like the following.
+Then ansible-gatekeeper can detect it and stop playbook execution like the following.
 
 ```bash
-$ ansible-runner transmit examples/runtime/target -p playbook.yml | ansible-gatekeeper -t jobdata -r examples/runtime/policy.rego
+$ ansible-runner transmit examples/runtime/db_user -p playbook.yml | \
+    ansible-gatekeeper -t jobdata -r examples/runtime/policy_use_allowed_dbs_only.rego | \
+    ansible-runner worker | \
+    ansible-runner process /tmp/
 {
   "not_allowed_databases": [
     "my-db"
   ],
   "using_forbidden_database": true
 }
+[FAILURE] Policy violation detected!
+```
+
+If the variable is using a valid database name (`allowed-db-1` for instance), then you can execute the playbook as usual like this.
+
+```bash
+$ cat examples/runtime/target/env/extravars
+---
+database_name: allowed-db-1
+database_user: john
+```
+
+```bash
+$ ansible-runner transmit examples/runtime/db_user -p playbook.yml | \
+    ansible-gatekeeper -t jobdata -r examples/runtime/policy_use_allowed_dbs_only.rego | \
+    ansible-runner worker | \
+    ansible-runner process /tmp/
+{
+  "not_allowed_databases": [],
+  "using_forbidden_database": false
+}
+[SUCCESS] All policy checks passed!
+
+
+PLAY [localhost] ***************************************************************
+
+TASK [Gathering Facts] *********************************************************
+
+ok: [localhost]
+
+TASK [Include variables] *******************************************************
+
+ok: [localhost]
+
+TASK [Create mongodb user] *****************************************************
+
+changed: [localhost]
+
+PLAY RECAP *********************************************************************
+localhost                  : ok=3    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
 ```
