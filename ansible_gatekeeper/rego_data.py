@@ -158,7 +158,7 @@ def load_input_from_jobdata(jobdata_path: str=""):
     )
     policy_input = make_policy_input(target_path=workdir.name)
     workdir.cleanup()
-    return policy_input
+    return policy_input, runner_jobdata_str
 
 
 def load_input_from_project_dir(project_dir: str=""):

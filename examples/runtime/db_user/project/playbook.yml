@@ -3,9 +3,12 @@
     - name: Include variables
       include_vars: "vars.yml"
 
-    # not listed in requirements.yml
     - name: Create mongodb user
       community.mongodb.mongodb_user:
         database: "{{ database_name }}"
         name: "{{ database_user }}"
         state: present
+        password: "test"
+        login_user: admin
+        login_password: admin
+        
