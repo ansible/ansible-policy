@@ -4,13 +4,13 @@ import json
 import argparse
 import tempfile
 from ansible_gatekeeper.rego_data import (
-    make_policy_input,
+    load_input_from_jobdata,
+    load_input_from_project_dir,
+    process_input_data_with_external_data,
 )
 from ansible_gatekeeper.utils import (
     validate_opa_installation,
     eval_opa_policy,
-    uncompress_file,
-    process_runner_jobdata,
 )
 
 
@@ -18,13 +18,13 @@ EvalTypeJobdata = "jobdata"
 EvalTypeProject = "project"
 
 
-def eval(rego_path: str, policy_input: str, galaxy_data_path: str) -> str:
+def eval(rego_path: str, input_data: str, external_data_path: str) -> str:
     validate_opa_installation()
 
     result = eval_opa_policy(
         rego_path=rego_path,
-        policy_input=policy_input,
-        galaxy_data_path=galaxy_data_path,
+        input_data=input_data,
+        external_data_path=external_data_path,
     )
 
     return result
@@ -33,65 +33,36 @@ def eval(rego_path: str, policy_input: str, galaxy_data_path: str) -> str:
 def main():
     parser = argparse.ArgumentParser(description="TODO")
     parser.add_argument("-r", "--rego", help='rego policy file')
-    parser.add_argument("-t", "--type", required=True, help='policy evaluation type; `jobdata` or `project`')
-    parser.add_argument("-f", "--file", help='jobdata file output from `ansible-runner transmit` command (if empty, use stdin)')
-    parser.add_argument("-d", "--dir", help='target project directory for project type')
-    parser.add_argument("-m", "--metadata-json", help='metadata json string for the target project')
-    parser.add_argument("-g", "--galaxy-data", default="galaxy_data.json.tar.gz", help='galaxy data file path')
+    parser.add_argument("-t", "--type", required=True, help='policy evaluation type (`jobdata` or `project`)')
+    parser.add_argument("-p", "--project-dir", help='target project directory for project type')
+    parser.add_argument("-e", "--external-data", default="galaxy_data.json", help='filepath to external data like knowledge base data')
+    parser.add_argument("-j", "--jobdata", help='alternative way to load jobdata from a file instead of stdin')
     parser.add_argument("-o", "--output", help='output json file')
     args = parser.parse_args()
 
     rego_path = args.rego
     eval_type = args.type
-    jobdata_path = args.file
-    target_dir = args.dir
-    metadata_json = args.metadata_json
-    galaxy_data_path = args.galaxy_data
+    project_dir = args.project_dir
+    external_data_path = args.external_data
+    jobdata_path = args.jobdata
     output_path = args.output
 
-    metadata = {}
-    if metadata_json:
-        metadata = json.loads(metadata_json)
-
-    if galaxy_data_path.endswith(".tar.gz"):
-        new_galaxy_data_path = galaxy_data_path[:-7]
-        if not os.path.exists(new_galaxy_data_path):
-            uncompress_file(galaxy_data_path)
-        galaxy_data_path = new_galaxy_data_path
-    
-    workdir = None
+    input_data = None
     if eval_type == EvalTypeJobdata:
-        workdir = tempfile.TemporaryDirectory()
-        runner_jobdata_str = ""
-        if jobdata_path:
-            with open(jobdata_path, "r") as file:
-                runner_jobdata_str = file.read()
-        else:
-            for line in sys.stdin:
-                runner_jobdata_str += line
-
-        process_runner_jobdata(
-            jobdata=runner_jobdata_str,
-            workdir=workdir.name,
-        )
-
-    target_path = ""
-    if eval_type == EvalTypeJobdata:
-        target_path = workdir.name
+        input_data = load_input_from_jobdata(jobdata_path=jobdata_path)
     elif eval_type == EvalTypeProject:
-        target_path = target_dir
-
-    p_input = make_policy_input(target_path=target_path, metadata=metadata, galaxy_data_path=galaxy_data_path)
-
-    result = eval(rego_path=rego_path, policy_input=p_input, galaxy_data_path=galaxy_data_path)
+        input_data = load_input_from_project_dir(project_dir=project_dir)
+    else:
+        raise ValueError(f"eval_type `{eval_type}` is not supported")
     
-    if workdir:
-        workdir.cleanup()
+    # embed `task.module_fqcn` to input_data by using external_data
+    input_data = process_input_data_with_external_data(input_data, external_data_path)
+
+    result = eval(rego_path=rego_path, input_data=input_data, external_data_path=external_data_path)
 
     if output_path:
         with open(output_path, "w") as ofile:
             ofile.write(json.dumps(result))
-            # ofile.write(p_input.to_json())
     else:
         disp_result = {k: v for k, v in result.items() if not k.startswith("_")}
         print(json.dumps(disp_result, indent=2))

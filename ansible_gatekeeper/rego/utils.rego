@@ -28,7 +28,6 @@ request_http_data_source(url) := ext_data {
     ext_data := resp.body
 }
 
-
 resolve_var(ref, vars) := name {
     name_0 := ref
     name_1 := replace(name_0, "{{", "")

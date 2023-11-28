@@ -23,11 +23,11 @@ The example policy below checks if database name which is used in a project is a
 
 `using_forbidden_database` is a boolean which represents whether the forbidden database is used or not.
 
-`detected_forbidden_databases` is a list of detected database names that are not allowed.
+`not_allowed_databases` is a list of detected database names that are not allowed.
 
 
 ```bash
-$ cat examples/sample1.rego
+$ cat examples/runtime/policy.rego
 package sample_ansible_policy
 
 import future.keywords.if
@@ -35,50 +35,47 @@ import future.keywords.in
 import data.ansible_gatekeeper.resolve_var
 
 _allowed_databases = ["allowed-db-1", "allowed-db-2"]
+_target_module = "community.mongodb.mongodb_user"
 
-is_allowed_db(task) {
+find_not_allowed_db(task) := database {
     fqcn := task.module_fqcn
-    fqcn == "community.mongodb.mongodb_user"
+    fqcn == _target_module
     database := resolve_var(task.module_options.database, input.variables)
-    database in _allowed_databases
+    not database in _allowed_databases
+}
+
+not_allowed_databases := found {
+    found := [
+        find_not_allowed_db(task) | task := input.playbooks[_].tasks[_]; find_not_allowed_db(task)
+    ]
 }
 
 using_forbidden_database = true if {
-    some i
-    task := input.playbooks[_].tasks[i]
-    task.module_fqcn == "community.mongodb.mongodb_user"
-    not is_allowed_db(task)
+    found := not_allowed_databases
+    count(found) > 0
 } else = false
 
-detected_forbidden_databases = [
-    resolve_var(task.module_options.database, input.variables) | task := input.playbooks[_].tasks[_]; task.module_fqcn == "community.mongodb.mongodb_user"; not is_allowed_db(task)
-]
 ```
 
 
 ### 5. run `ansible-gatekeeper` for **project directory**
 
-The example project is using an allowed database `allowed-db-1` (in [vars.yml](./examples/sample1/project/vars.yml)), so no policy violations are reported.
-
-```bash
-$ ansible-gatekeeper -t project -d examples/sample1/project -r examples/sample1.rego
-{
-  "detected_forbidden_databases": [],
-  "using_forbidden_database": false
-}
+WIP
 ```
 
 
 ### 6. run `ansible-gatekeeper` for **ansible-runner jobdata**
 
-The example directory has [env/extravars](./examples/sample1/env/extravars) which `ansible-runner` command loads as variables at runtime, so this example uses `my-db` database which is not allowed.
+ansible-gatekeeper can be used for checking runtime jobdata created by `ansibler-runner`, and this feature is useful to stop the playbook execution when policy violation is detected.
 
-This time ansible-gatekeeper can detect this forbidden database name like the following.
+The example directory has [env/extravars](./examples/runtime/target/env/extravars) which `ansible-runner` command loads as variables at runtime, so this example uses `my-db` database which is not allowed.
+
+Then ansible-gatekeeper can detect it like the following.
 
 ```bash
-$ ansible-runner transmit examples/sample1 -p playbook.yml | ansible-gatekeeper -t jobdata -r examples/sample1.rego
+$ ansible-runner transmit examples/runtime/target -p playbook.yml | ansible-gatekeeper -t jobdata -r examples/runtime/policy.rego
 {
-  "detected_forbidden_databases": [
+  "not_allowed_databases": [
     "my-db"
   ],
   "using_forbidden_database": true

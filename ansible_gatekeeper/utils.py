@@ -50,23 +50,24 @@ def load_galaxy_data(fpath: str):
     return data.get("galaxy", {})
 
 
-def eval_opa_policy(rego_path: str, policy_input: str, galaxy_data_path: str, executable_name: str="opa"):
+def eval_opa_policy(rego_path: str, input_data: str, external_data_path: str, executable_name: str="opa"):
     rego_pkg_name = get_rego_main_package_name(rego_path=rego_path)
     if not rego_pkg_name:
         raise ValueError("`package` must be defined in the rego policy file")
     
     util_rego_path = os.path.join(os.path.dirname(__file__), "rego/utils.rego")
-    cmd_str = f"{executable_name} eval --data {util_rego_path} --data {rego_path} --data {galaxy_data_path} --stdin-input 'data.{rego_pkg_name}'"
+    cmd_str = f"{executable_name} eval --data {util_rego_path} --data {rego_path} --data {external_data_path} --stdin-input 'data.{rego_pkg_name}'"
     proc = subprocess.run(
         cmd_str,
         shell=True,
-        input=policy_input,
+        input=input_data,
         # stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
     logger.debug(f"command: {cmd_str}")
+    logger.debug(f"proc.input_data: {input_data}")
     logger.debug(f"proc.stdout: {proc.stdout}")
     logger.debug(f"proc.stderr: {proc.stderr}")
     if proc.returncode != 0:
@@ -94,7 +95,7 @@ def eval_opa_policy(rego_path: str, policy_input: str, galaxy_data_path: str, ex
     return result_value
 
 
-def get_module_name_from_task(task, galaxy: dict=None):
+def get_module_name_from_task(task):
     module_name = ""
     if task.module_info and isinstance(task.module_info, dict):
         module_name = task.module_info.get("fqcn", "")
@@ -103,12 +104,7 @@ def get_module_name_from_task(task, galaxy: dict=None):
             module_name = task.annotations.get("module.correct_fqcn", "")
         if not module_name:
             module_name = task.annotations.get("correct_fqcn", "")
-    if not module_name and galaxy:
-        if "." not in task.module:
-            mappings = galaxy.get("module_name_mappings", {})
-            found = mappings.get(task.module, [])
-            if found and found[0] and "." in found[0]:
-                module_name = found[0]
+    
     if not module_name:
         module_name = task.module
     
@@ -117,6 +113,23 @@ def get_module_name_from_task(task, galaxy: dict=None):
         module_short_name = module_short_name.split(".")[-1]
 
     return module_name, module_short_name
+
+
+def embed_module_fqcn_with_galaxy(task, galaxy):
+    if not galaxy:
+        return
+    if task.module and "." in task.module:
+        return
+    if task.module_fqcn and "." in task.module_fqcn:
+        return
+    
+    module_fqcn = ""
+    mappings = galaxy.get("module_name_mappings", {})
+    found = mappings.get(task.module, [])
+    if found and found[0] and "." in found[0]:
+        module_fqcn = found[0]
+        task.module_fqcn = module_fqcn
+    return
 
 
 def get_rego_main_package_name(rego_path: str):
@@ -139,7 +152,7 @@ def uncompress_file(fpath: str):
     return
 
 
-def process_runner_jobdata(jobdata: str, workdir: str):
+def prepare_project_dir_from_runner_jobdata(jobdata: str, workdir: str):
     if not isinstance(jobdata, str):
         return None
     lines = jobdata.splitlines()
@@ -165,3 +178,26 @@ def decode_base64_string(encoded: str) -> bytes:
     # decoded bytes may contain some chars that cannot be converted into text string
     # so we just return the bytes data here
     return decoded_bytes
+
+
+ExternalDataTypeGalaxy = "galaxy"
+ExternalDataTypeAutomation = "automation"
+supported_external_data_types = [ExternalDataTypeGalaxy, ExternalDataTypeAutomation]
+
+
+def load_external_data(ftype: str="", fpath: str=""):
+    if ftype not in supported_external_data_types:
+        raise ValueError(f"`{ftype}` is not supported as external data")
+    
+    if fpath.endswith(".tar.gz"):
+        new_fpath = fpath[:-7]
+        if not os.path.exists(new_fpath):
+            uncompress_file(fpath)
+        fpath = new_fpath
+
+    ext_data = None
+    if ftype == ExternalDataTypeGalaxy:
+        ext_data = load_galaxy_data(fpath=fpath)
+    else:
+        raise NotImplementedError
+    return ext_data
