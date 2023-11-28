@@ -223,8 +223,10 @@ class File(object):
                 if hasattr(new_obj, k):
                     setattr(new_obj, k, v)
 
-        new_obj.data = json.loads(obj.data)
-
+        try:
+            new_obj.data = json.loads(obj.data)
+        except Exception:
+            new_obj.data = None
         return new_obj
 
 @dataclass
