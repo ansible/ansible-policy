@@ -29,7 +29,7 @@ dynamic = ["version"]
 version = {attr = "ansible_gatekeeper.__version__.__version__"}
 
 [project.scripts]
-ansible-gatekeeper = "ansible_gatekeeper.eval:main"
+ansible-gatekeeper = "ansible_gatekeeper.rul_eval:main"
 
 [tool.setuptools]
 py-modules = ["ansible_gatekeeper"]

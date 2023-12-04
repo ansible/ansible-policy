@@ -6,7 +6,7 @@
           requirements_yml: '[req.name | req := input.project.requirements.collections[_]]'
           _builtin_and_deps: 'array.concat(["ansible.builtin"], requirements_yml)'
 
-    - gatekeeper.rego.def_func:
+    - gatekeeper.rego.def_rule:
         name: detect_missing_dependencies
         args: task
         steps:
@@ -15,7 +15,7 @@
         - not collection in _builtin_and_deps
         return: collection
 
-    - gatekeeper.rego.def_func:
+    - gatekeeper.rego.def_rule:
         name: get_module_collection_name
         args: fqcn
         steps:
@@ -24,7 +24,7 @@
         - coll := concat(".", [parts[0], parts[1]])
         return: coll
     
-    - gatekeeper.rego.def_func:
+    - gatekeeper.rego.def_rule:
         type: filter
         name: missing_dependencies
         steps:
@@ -32,12 +32,12 @@
         - x := detect_missing_dependencies(task)
         key: x
 
-    - gatekeeper.rego.def_func:
+    - gatekeeper.rego.def_rule:
         type: if
         name: has_missing_dependencies
         steps:
         - count(missing_dependencies) > 0
 
-    - gatekeeper.rego.eval:
+    - gatekeeper.rego.run_eval:
         project: firewall_role
 

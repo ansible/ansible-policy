@@ -5,11 +5,11 @@
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 DOCUMENTATION = r"""
-module: def_func
-short_description: define a new funciton to be transpiled to Rego policy
+module: def_rule
+short_description: define a new rule to be transpiled to Rego policy
 version_added: 0.0.1
 description:
-    - Define a new funciton to be transpiled to Rego policy
+    - Define a new rule to be transpiled to Rego policy
 author: 'TODO'
 options:
   args:
@@ -43,9 +43,9 @@ import string
 from ansible.module_utils.basic import AnsibleModule
 
 
-_func_template = string.Template(
+_rule_template = string.Template(
     r"""
-${func_name}(${args}) := ${return} {
+${rule_name}(${args}) := ${return} {
     ${steps}
 }
 """
@@ -53,7 +53,7 @@ ${func_name}(${args}) := ${return} {
 
 _filter_template = string.Template(
     r"""
-${func_name}[${key}] {
+${rule_name}[${key}] {
     ${steps}
 }
 """
@@ -61,7 +61,7 @@ ${func_name}[${key}] {
 
 _if_template = string.Template(
     r"""
-${func_name} = true if {
+${rule_name} = true if {
     ${steps}
 } else = false
 """
@@ -91,14 +91,14 @@ def create_rego_block(params: dict):
     rego_block = ""
     _type = params["type"]
     template = None
-    if _type == "func":
-        template = _func_template
+    if _type == "rule":
+        template = _rule_template
     elif _type == "filter":
         template = _filter_template
     elif _type == "if":
         template = _if_template
     else:
-        raise ValueError(f"{_type} is not supported type of function")
+        raise ValueError(f"{_type} is not supported type of rule")
 
     _args = join_with_separator(params["args"])
     _return = join_with_separator(params["return"])
@@ -106,7 +106,7 @@ def create_rego_block(params: dict):
 
     rego_block = template.safe_substitute(
         {
-            "func_name": params["name"],
+            "rule_name": params["name"],
             "args": _args,
             "return": _return,
             "key": params["key"],
@@ -143,7 +143,7 @@ def main():
     # define available arguments/parameters a user can pass to the module
     module_args = {
         "policy": dict(type="str", required=False, default="ansible_sample_policy"),
-        "type": dict(type="str", required=False, default="func"),
+        "type": dict(type="str", required=False, default="rule"),
         "name": dict(type="str", required=True),
         "args": dict(type="list", required=False, default=False),
         "steps": dict(type="list", required=False),
