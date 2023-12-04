@@ -9,7 +9,7 @@
     - gatekeeper.rego.def_rule:
         name: detect_missing_dependencies
         args: task
-        steps:
+        exprs:
         - fqcn := task.module_fqcn
         - collection := get_module_collection_name(fqcn)
         - not collection in _builtin_and_deps
@@ -18,7 +18,7 @@
     - gatekeeper.rego.def_rule:
         name: get_module_collection_name
         args: fqcn
-        steps:
+        exprs:
         - contains(fqcn, ".")
         - parts := split(fqcn, ".")
         - coll := concat(".", [parts[0], parts[1]])
@@ -27,7 +27,7 @@
     - gatekeeper.rego.def_rule:
         type: filter
         name: missing_dependencies
-        steps:
+        exprs:
         - task := input.taskfiles[_].tasks[_]
         - x := detect_missing_dependencies(task)
         key: x
@@ -35,7 +35,7 @@
     - gatekeeper.rego.def_rule:
         type: if
         name: has_missing_dependencies
-        steps:
+        exprs:
         - count(missing_dependencies) > 0
 
     - gatekeeper.rego.run_eval:
