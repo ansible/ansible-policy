@@ -38,6 +38,6 @@
         steps:
         - count(missing_dependencies) > 0
 
-    - gatekeeper.rego.eval:
+    - gatekeeper.rego.run_eval:
         project: firewall_role
 

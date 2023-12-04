@@ -62,7 +62,7 @@ changed: [localhost]
 TASK [gatekeeper.rego.def_rule] **********************************************************************************************
 changed: [localhost]
 
-TASK [gatekeeper.rego.eval] **************************************************************************************************
+TASK [gatekeeper.rego.run_eval] **************************************************************************************************
 fatal: [localhost]: FAILED! => {"changed": false, "message": "", "msg": "Policy violation detected", "rego_block": "", "result": {"returncode": 1, "stderr": "{\n  \"has_missing_dependencies\": true,\n  \"missing_dependencies\": [\n    \"community.crypto\"\n  ],\n  \"requirements_yml\": [\n    \"community.general\"\n  ]\n}\n[FAILURE] Policy violation detected!\n", "stdout": ""}}
 
 PLAY RECAP *******************************************************************************************************************

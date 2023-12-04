@@ -29,12 +29,12 @@ def eval_policy(eval_type: str, policy_path: str, project_dir: str = "", jobdata
     # embed `task.module_fqcn` to input_data by using external_data
     input_data = process_input_data_with_external_data(input_data, external_data_path)
 
-    result = _eval(rego_path=policy_path, input_data=input_data, external_data_path=external_data_path)
+    result = _eval_policy(rego_path=policy_path, input_data=input_data, external_data_path=external_data_path)
 
     return result, runner_jobdata_str
 
 
-def _eval(rego_path: str, input_data: str, external_data_path: str) -> str:
+def _eval_policy(rego_path: str, input_data: str, external_data_path: str) -> str:
     validate_opa_installation()
 
     result = eval_opa_policy(
