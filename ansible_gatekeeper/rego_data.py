@@ -23,11 +23,15 @@ from sage_scan.models import (
     Project as SageObjProject,
     Playbook as SagePlaybook,
     SageProject,
+    PlaybookData,
+    TaskFileData,
 )
+from sage_scan.process.variable_container import get_set_vars_from_data
 from sage_scan.process.utils import (
     get_tasks_in_playbook,
     get_tasks_in_taskfile,
     get_taskfiles_in_role,
+    list_entrypoints,
 )
 
 
@@ -101,14 +105,15 @@ class PolicyInput(object):
         if runtime_data:
             p_input.extra_vars = runtime_data.extra_vars
 
-        variables = {}
+        _common_vars = {}
         for file in p_input.vars_files.values():
             if file.data:
-                variables.update(file.data)
+                _common_vars.update(file.data)
 
         if p_input.extra_vars:
-            variables.update(p_input.extra_vars)
+            _common_vars.update(p_input.extra_vars)
 
+        variables = p_input.get_all_set_vars(project=project, common_vars=_common_vars)
         p_input.variables = variables
 
         return p_input
@@ -129,6 +134,44 @@ class PolicyInput(object):
         if not isinstance(p_input, PolicyInput):
             raise ValueError(f"a decoded object is not a PolicyInput, but {type(p_input)}")
         return p_input
+
+    def get_all_set_vars(self, project: SageProject, common_vars: dict = None):
+        entrypoints = list_entrypoints(project=project)
+        entry_and_objs = []
+        variables = {}
+        for entry in entrypoints:
+            if isinstance(entry, SageRole):
+                taskfiles = get_taskfiles_in_role(role=entry, project=project)
+                for tf in taskfiles:
+                    entry_and_objs.append((entry, tf))
+            else:
+                entry_and_objs.append((entry, entry))
+
+        object_data_list = []
+        for (entrypoint, object) in entry_and_objs:
+            if isinstance(object, SagePlaybook):
+                playbook_data = PlaybookData(object=object, project=project)
+                object_data_list.append(playbook_data)
+            elif isinstance(object, SageTaskFile):
+                taskfile_data = None
+                if isinstance(entrypoint, SageRole):
+                    taskfile_data = TaskFileData(object=object, project=project, role=entrypoint)
+                else:
+                    taskfile_data = TaskFileData(object=object, project=project)
+                object_data_list.append(taskfile_data)
+        for object_data in object_data_list:
+            # variable_container function
+            set_vars, role_vars = get_set_vars_from_data(pd=object_data)
+            _all_vars = {}
+            if role_vars:
+                _all_vars.update(role_vars)
+            if set_vars:
+                _all_vars.update(set_vars)
+            if common_vars:
+                _all_vars.update(common_vars)
+            entry_key = object_data.object.key
+            variables.update({entry_key: _all_vars})
+        return variables
 
 
 def load_input_from_jobdata(jobdata_path: str = ""):

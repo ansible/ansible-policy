@@ -10,7 +10,7 @@ _target_module = "community.mongodb.mongodb_user"
 find_not_allowed_db(task) := database {
     fqcn := task.module_fqcn
     fqcn == _target_module
-    database := resolve_var(task.module_options.database, input.variables) # <== variable resolution
+    database := resolve_var(task.module_options.database, task) # <== variable resolution
     not database in _allowed_databases
 }
 

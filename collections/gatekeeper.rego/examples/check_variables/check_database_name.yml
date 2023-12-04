@@ -1,0 +1,60 @@
+- hosts: localhost
+  tasks:
+    - gatekeeper.rego.def_vars:
+        create_policy: True
+        vars:
+          _allowed_databases: '["allowed-db-1", "allowed-db-2"]'
+          _target_module: '"community.mongodb.mongodb_user"'
+
+    - gatekeeper.rego.def_rule:
+        name: find_not_allowed_db
+        args: task
+        exprs:
+          - fqcn := task.module_fqcn
+          - fqcn == _target_module
+          - database := resolve_var(task.module_options.database, task) # <== variable resolution
+        return: database
+    
+    - gatekeeper.rego.def_rule:
+        type: filter
+        name: not_allowed_databases
+        exprs:
+        - task := input.playbooks[_].tasks[_] # <== loaded from project content
+        - x := find_not_allowed_db(task)
+        key: x
+
+    - gatekeeper.rego.def_rule:
+        type: if
+        name: using_forbidden_database
+        exprs:
+        - count(not_allowed_databases) > 0
+
+    - gatekeeper.rego.run_eval:
+        project: db_user
+
+
+
+# package sample_ansible_policy
+
+# import future.keywords.if
+# import future.keywords.in
+# import data.ansible_gatekeeper.resolve_var
+
+# _allowed_databases = ["allowed-db-1", "allowed-db-2"]
+# _target_module = "community.mongodb.mongodb_user"
+
+# find_not_allowed_db(task) := database {
+#     fqcn := task.module_fqcn
+#     fqcn == _target_module
+#     database := resolve_var(task.module_options.database, task) # <== variable resolution
+#     not database in _allowed_databases
+# }
+
+# not_allowed_databases[x] {
+#     task := input.playbooks[_].tasks[_] # <== loaded from project content
+#     x := find_not_allowed_db(task)
+# }
+
+# using_forbidden_database = true if {
+#     count(not_allowed_databases) > 0
+# } else = false

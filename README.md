@@ -32,12 +32,12 @@ gatekeeper.rego:0.0.1 was installed successfully
 
 ### 5. running example policy playbook
 
-The example project `examples/firewall_role` has a requirements.yml, but there is a missing requirement `community.crypto` which is used in a playbook in the project.
+[The example project](collections/gatekeeper.rego/examples/check_requirements/firewall_role/) has a requirements.yml, but there is a missing requirement `community.crypto` which is used in a playbook in the project.
 
-`examples/check_requirements.yml` is a policy playbook to check requirements, so it reports this missing requirement like the following.
+[check_requirements.yml](collections/gatekeeper.rego/examples/check_requirements/check_requirements.yml) is a policy playbook to check requirements, so it reports this missing requirement like the following.
 
 ```bash
-$ ansible-playbook collections/gatekeeper.rego/examples/check_requirements.yml
+$ ansible-playbook collections/gatekeeper.rego/examples/check_requirements/check_requirements.yml
 
 PLAY [localhost] *************************************************************************************************************
 

@@ -2,6 +2,9 @@
 
 package ansible_gatekeeper
 
+import future.keywords.if
+
+
 has_key(x, key) { _ = x[key] }
 
 # trial1: when task.module is FQCN
@@ -28,10 +31,35 @@ request_http_data_source(url) := ext_data {
     ext_data := resp.body
 }
 
-resolve_var(ref, vars) := name {
-    name_0 := ref
-    name_1 := replace(name_0, "{{", "")
-    name_2 := replace(name_1, "}}", "")
-    name_3 := replace(name_2, " ", "")
-    name := vars[name_3]
+_find_playbook_by_task(task) := playbook_key {
+    playbook := input.playbooks[_]
+    current_task = playbook.tasks[_]
+    current_task.key == task.key
+    playbook_key := playbook.key
+}
+
+_find_taskfile_by_task(task) := taskfile_key {
+    taskfile := input.taskfiles[_]
+    current_task = taskfile.tasks[_]
+    current_task.key == task.key
+    taskfile_key := taskfile.key
+}
+
+_find_entrypoint_by_task(task) := playbook_key if {
+    playbook_key := _find_playbook_by_task(task)
+    playbook_key
+}
+
+_find_entrypoint_by_task(task) := taskfile_key if {
+    taskfile_key := _find_taskfile_by_task(task)
+    taskfile_key
+}
+
+resolve_var(ref, task) := var_value {
+    var_name_tmp1 := replace(ref, "{{", "")
+    var_name_tmp2 := replace(var_name_tmp1, "}}", "")
+    var_name := replace(var_name_tmp2, " ", "")
+    entrypoint_key := _find_entrypoint_by_task(task)
+    variables := input.variables[entrypoint_key]
+    var_value := variables[var_name]
 }
