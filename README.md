@@ -10,12 +10,69 @@ refer to OPA [document](https://github.com/open-policy-agent/opa#want-to-downloa
 
 clone this repository
 
-### 3. pip install
+### 3. install `ansbile-gatekeeper` command
 
 ```bash
 $ cd ansible-gatekeeper
 $ pip install -e .
 ```
+
+### 4. install `gatekeeper.rego` modules
+
+```bash
+$ ansible-galaxy collection install collections/gatekeeper.rego --force
+
+Starting galaxy collection install process
+Process install dependency map
+Starting collection install process
+Installing 'gatekeeper.rego:0.0.1' to '/Users/user/.ansible/collections/ansible_collections/gatekeeper/rego'
+Created collection for gatekeeper.rego:0.0.1 at /Users/user/.ansible/collections/ansible_collections/gatekeeper/rego
+gatekeeper.rego:0.0.1 was installed successfully
+```
+
+### 5. running example policy playbook
+
+The example project `examples/firewall_role` has a requirements.yml, but there is a missing requirement `community.crypto` which is used in a playbook in the project.
+
+`examples/check_requirements.yml` is a policy playbook to check requirements, so it reports this missing requirement like the following.
+
+```bash
+$ ansible-playbook collections/gatekeeper.rego/examples/check_requirements.yml
+
+PLAY [localhost] ************************************************************************************************************************
+
+TASK [Gathering Facts] ******************************************************************************************************************
+ok: [localhost]
+
+TASK [gatekeeper.rego.def_vars] *********************************************************************************************************
+changed: [localhost]
+
+TASK [gatekeeper.rego.def_func] *********************************************************************************************************
+changed: [localhost]
+
+TASK [gatekeeper.rego.def_func] *********************************************************************************************************
+changed: [localhost]
+
+TASK [gatekeeper.rego.def_func] *********************************************************************************************************
+changed: [localhost]
+
+TASK [gatekeeper.rego.def_func] *********************************************************************************************************
+changed: [localhost]
+
+TASK [gatekeeper.rego.eval] *************************************************************************************************************
+fatal: [localhost]: FAILED! => {"changed": false, "message": "", "msg": "Policy violation detected", "rego_block": "", "result": {"returncode": 1, "stderr": "{\n  \"has_missing_dependencies\": true,\n  \"missing_dependencies\": [\n    \"community.crypto\"\n  ],\n  \"requirements_yml\": [\n    \"community.general\"\n  ]\n}\n[FAILURE] Policy violation detected!\n", "stdout": ""}}
+
+PLAY RECAP ******************************************************************************************************************************
+localhost                  : ok=6    changed=5    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0
+
+```
+
+
+<details>
+
+<summary>backlog</summary>
+
+<div>
 
 ### 4. run `ansible-gatekeeper` for **project directory**
 
@@ -164,3 +221,7 @@ changed: [localhost]
 PLAY RECAP *********************************************************************
 localhost                  : ok=3    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
 ```
+
+</div>
+
+</details>
