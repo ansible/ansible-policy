@@ -46,7 +46,7 @@ from ansible.module_utils.basic import AnsibleModule
 _rule_template = string.Template(
     r"""
 ${rule_name}(${args}) := ${return} {
-    ${steps}
+    ${exprs}
 }
 """
 )
@@ -54,7 +54,7 @@ ${rule_name}(${args}) := ${return} {
 _filter_template = string.Template(
     r"""
 ${rule_name}[${key}] {
-    ${steps}
+    ${exprs}
 }
 """
 )
@@ -62,7 +62,7 @@ ${rule_name}[${key}] {
 _if_template = string.Template(
     r"""
 ${rule_name} = true if {
-    ${steps}
+    ${exprs}
 } else = false
 """
 )
@@ -102,7 +102,7 @@ def create_rego_block(params: dict):
 
     _args = join_with_separator(params["args"])
     _return = join_with_separator(params["return"])
-    _steps = join_with_separator(params["steps"], separator="\n    ")
+    _exprs = join_with_separator(params["exprs"], separator="\n    ")
 
     rego_block = template.safe_substitute(
         {
@@ -110,7 +110,7 @@ def create_rego_block(params: dict):
             "args": _args,
             "return": _return,
             "key": params["key"],
-            "steps": _steps,
+            "exprs": _exprs,
         }
     )
 
@@ -146,7 +146,7 @@ def main():
         "type": dict(type="str", required=False, default="rule"),
         "name": dict(type="str", required=True),
         "args": dict(type="list", required=False, default=False),
-        "steps": dict(type="list", required=False),
+        "exprs": dict(type="list", required=False),
         "return": dict(type="list", required=False),
         "key": dict(type="str", required=False),
         "create_policy": dict(type="bool", required=False, default=False),
