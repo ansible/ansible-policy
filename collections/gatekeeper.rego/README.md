@@ -19,61 +19,36 @@ Created collection for gatekeeper.rego:0.0.1 at /Users/user/.ansible/collections
 gatekeeper.rego:0.0.1 was installed successfully
 ```
 
-### 3. try test playbook
+### 3. try an example playbook
+
+The example playbook `examples/check_variables/check_database_name.yml` is a policy to check variable values, and it reports policy violation if some variables match with its conditions.
+
+The example project `examples/check_variables/db_user` has a playbook which is using a database which is not allowed in the policy, so the policy reports this violation like the following.
+
 
 ```bash
-$ ansible-playbook tests/test.yml
+$ ansible-playbook collections/gatekeeper.rego/examples/check_variables/check_database_name.yml
 
-PLAY [localhost] *****************************************************************************************************************************************************************************
+PLAY [localhost] ************************************************************************************************************************
 
-TASK [Gathering Facts] ***********************************************************************************************************************************************************************
+TASK [Gathering Facts] ******************************************************************************************************************
 ok: [localhost]
 
-TASK [gatekeeper.rego.def_vars] *****************************************************************************************************************************************************************
+TASK [gatekeeper.rego.def_vars] *********************************************************************************************************
 changed: [localhost]
 
-TASK [gatekeeper.rego.def_func] *****************************************************************************************************************************************************************
+TASK [gatekeeper.rego.def_func] *********************************************************************************************************
 changed: [localhost]
 
-TASK [gatekeeper.rego.def_func] *****************************************************************************************************************************************************************
+TASK [gatekeeper.rego.def_func] *********************************************************************************************************
 changed: [localhost]
 
-TASK [gatekeeper.rego.def_func] *****************************************************************************************************************************************************************
+TASK [gatekeeper.rego.def_func] *********************************************************************************************************
 changed: [localhost]
 
-PLAY RECAP ***********************************************************************************************************************************************************************************
-localhost                  : ok=5    changed=4    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
-```
+TASK [gatekeeper.rego.eval] *************************************************************************************************************
+fatal: [localhost]: FAILED! => {"changed": false, "message": "", "msg": "Policy violation detected", "rego_block": "", "result": {"returncode": 1, "stderr": "{\n  \"not_allowed_databases\": [\n    \"not-allowed-db\"\n  ],\n  \"using_forbidden_database\": true\n}\n[FAILURE] Policy violation detected!\n", "stdout": ""}}
 
-### 4. check the generated policy
-
-NOTE: currently the policy will be generated at `/tmp/<policy_name>.rego`, but this should be changed in the future
-
-```bash
-$ cat /tmp/ansible_sample_policy.rego
-
-package ansible_sample_policy
-
-import future.keywords.if
-import future.keywords.in
-import data.ansible_gatekeeper.resolve_var
-
-_allowed_databases:['allowed-db-1', 'allowed-db-2']
-_target_module:community.mongodb.mongodb_user
-
-find_not_allowed_db(task) := database {
-    fqcn := task.module_fqcn
-    fqcn == _target_module
-    database := resolve_var(task.module_options.database, input.variables)
-    not database in _allowed_databases
-}
-
-not_allowed_databases[x] {
-    task := input.playbooks[_].tasks[_]
-    x := find_not_allowed_db(task)
-}
-
-using_forbidden_database = true if {
-    count(not_allowed_databases) > 0
-} else = false
+PLAY RECAP ******************************************************************************************************************************
+localhost                  : ok=5    changed=4    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0
 ```
