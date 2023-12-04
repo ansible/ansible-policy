@@ -39,30 +39,33 @@ The example project `examples/firewall_role` has a requirements.yml, but there i
 ```bash
 $ ansible-playbook collections/gatekeeper.rego/examples/check_requirements.yml
 
-PLAY [localhost] ************************************************************************************************************************
+[WARNING]: No inventory was parsed, only implicit localhost is available
+[WARNING]: provided hosts list is empty, only localhost is available. Note that the implicit localhost does not match 'all'
 
-TASK [Gathering Facts] ******************************************************************************************************************
+PLAY [localhost] *************************************************************************************************************
+
+TASK [Gathering Facts] *******************************************************************************************************
 ok: [localhost]
 
-TASK [gatekeeper.rego.def_vars] *********************************************************************************************************
+TASK [gatekeeper.rego.def_vars] **********************************************************************************************
 changed: [localhost]
 
-TASK [gatekeeper.rego.def_func] *********************************************************************************************************
+TASK [gatekeeper.rego.def_rule] **********************************************************************************************
 changed: [localhost]
 
-TASK [gatekeeper.rego.def_func] *********************************************************************************************************
+TASK [gatekeeper.rego.def_rule] **********************************************************************************************
 changed: [localhost]
 
-TASK [gatekeeper.rego.def_func] *********************************************************************************************************
+TASK [gatekeeper.rego.def_rule] **********************************************************************************************
 changed: [localhost]
 
-TASK [gatekeeper.rego.def_func] *********************************************************************************************************
+TASK [gatekeeper.rego.def_rule] **********************************************************************************************
 changed: [localhost]
 
-TASK [gatekeeper.rego.eval] *************************************************************************************************************
+TASK [gatekeeper.rego.eval] **************************************************************************************************
 fatal: [localhost]: FAILED! => {"changed": false, "message": "", "msg": "Policy violation detected", "rego_block": "", "result": {"returncode": 1, "stderr": "{\n  \"has_missing_dependencies\": true,\n  \"missing_dependencies\": [\n    \"community.crypto\"\n  ],\n  \"requirements_yml\": [\n    \"community.general\"\n  ]\n}\n[FAILURE] Policy violation detected!\n", "stdout": ""}}
 
-PLAY RECAP ******************************************************************************************************************************
+PLAY RECAP *******************************************************************************************************************
 localhost                  : ok=6    changed=5    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0
 
 ```

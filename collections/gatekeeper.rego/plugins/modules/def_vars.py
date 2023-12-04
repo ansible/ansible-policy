@@ -6,10 +6,10 @@
 
 DOCUMENTATION = r"""
 module: def_vars
-short_description: define a new vars to be transpiled to Rego policy
+short_description: define a new variables to be transpiled to Rego policy
 version_added: 0.0.1
 description:
-    - Define a new funciton to be transpiled to Rego policy
+    - Define new variables to be transpiled to Rego policy
 author: 'TODO'
 options:
   args:
