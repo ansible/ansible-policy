@@ -39,9 +39,6 @@ The example project `examples/firewall_role` has a requirements.yml, but there i
 ```bash
 $ ansible-playbook collections/gatekeeper.rego/examples/check_requirements.yml
 
-[WARNING]: No inventory was parsed, only implicit localhost is available
-[WARNING]: provided hosts list is empty, only localhost is available. Note that the implicit localhost does not match 'all'
-
 PLAY [localhost] *************************************************************************************************************
 
 TASK [Gathering Facts] *******************************************************************************************************
