@@ -2,7 +2,6 @@ package sample_ansible_policy
 
 import future.keywords.if
 import future.keywords.in
-import future.keywords.every
 
 requirements_yml = [req.name | req := input.project.requirements.collections[_]]
 _builtin_and_deps := array.concat(["ansible.builtin"], requirements_yml)
