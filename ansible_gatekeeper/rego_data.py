@@ -84,21 +84,12 @@ class PolicyInput(object):
     # others?
 
     @staticmethod
-    def from_sage_project(project: SageProject, runtime_data: RuntimeData=None):
+    def from_sage_project(project: SageProject, runtime_data: RuntimeData = None):
         p_input = PolicyInput()
         p_input.source = project.source
-        p_input.playbooks = {
-            playbook.filepath: Playbook.from_sage_object(obj=playbook, proj=project)
-            for playbook in project.playbooks
-        }
-        p_input.taskfiles = {
-            taskfile.filepath: TaskFile.from_sage_object(obj=taskfile, proj=project)
-            for taskfile in project.taskfiles
-        }
-        p_input.roles = {
-            role.filepath: Role.from_sage_object(obj=role, proj=project)
-            for role in project.roles
-        }
+        p_input.playbooks = {playbook.filepath: Playbook.from_sage_object(obj=playbook, proj=project) for playbook in project.playbooks}
+        p_input.taskfiles = {taskfile.filepath: TaskFile.from_sage_object(obj=taskfile, proj=project) for taskfile in project.taskfiles}
+        p_input.roles = {role.filepath: Role.from_sage_object(obj=role, proj=project) for role in project.roles}
         if project.projects:
             p_input.project = project.projects[0]
 
@@ -114,24 +105,22 @@ class PolicyInput(object):
         for file in p_input.vars_files.values():
             if file.data:
                 variables.update(file.data)
-        
+
         if p_input.extra_vars:
             variables.update(p_input.extra_vars)
 
         p_input.variables = variables
 
         return p_input
-            
 
     def to_json(self, **kwargs):
         kwargs["value"] = self
         kwargs["make_refs"] = False
-        kwargs["separators"] = (',', ':')
+        kwargs["separators"] = (",", ":")
         return jsonpickle.encode(**kwargs)
 
-
     @staticmethod
-    def from_json(json_str: str="", fpath: str=""):
+    def from_json(json_str: str = "", fpath: str = ""):
         if not json_str and fpath:
             with open(fpath, "r") as file:
                 json_str = file.read()
@@ -140,9 +129,9 @@ class PolicyInput(object):
         if not isinstance(p_input, PolicyInput):
             raise ValueError(f"a decoded object is not a PolicyInput, but {type(p_input)}")
         return p_input
-    
 
-def load_input_from_jobdata(jobdata_path: str=""):
+
+def load_input_from_jobdata(jobdata_path: str = ""):
     runner_jobdata_str = ""
     if jobdata_path:
         with open(jobdata_path, "r") as file:
@@ -161,14 +150,14 @@ def load_input_from_jobdata(jobdata_path: str=""):
     return policy_input, runner_jobdata_str
 
 
-def load_input_from_project_dir(project_dir: str=""):
+def load_input_from_project_dir(project_dir: str = ""):
     policy_input = make_policy_input(target_path=project_dir)
     return policy_input
 
 
 def process_input_data_with_external_data(input_data: PolicyInput, external_data_path: str):
     galaxy = load_external_data(ftype="galaxy", fpath=external_data_path)
-    
+
     # set `task.module_fqcn` by using galaxy FQCN list
     for playbook in input_data.playbooks.values():
         for task in playbook.tasks:
@@ -182,20 +171,20 @@ def process_input_data_with_external_data(input_data: PolicyInput, external_data
         for taskfile in role.taskfiles.values():
             for task in taskfile.tasks:
                 embed_module_fqcn_with_galaxy(task=task, galaxy=galaxy)
-    
+
     input_data_str = input_data.to_json()
     return input_data_str
 
 
 # make policy input data by scanning target project
-def make_policy_input(target_path: str, metadata: dict={}) -> PolicyInput:
+def make_policy_input(target_path: str, metadata: dict = {}) -> PolicyInput:
     fpath = ""
     dpath = ""
     if os.path.isfile(target_path):
         fpath = os.path.abspath(target_path)
     else:
         dpath = os.path.abspath(target_path)
-    
+
     runtime_data = RuntimeData.load(dir=target_path)
 
     policy_input = None
@@ -208,15 +197,15 @@ def make_policy_input(target_path: str, metadata: dict={}) -> PolicyInput:
         policy_input = scan_project(project_dir=dpath, metadata=metadata, runtime_data=runtime_data)
     else:
         raise ValueError(f"`{target_path}` does not exist")
-    
+
     return policy_input
 
 
-def scan_project(yaml_str: str="", project_dir: str="", metadata: dict=None, runtime_data: RuntimeData=None, output_dir: str=""):
+def scan_project(yaml_str: str = "", project_dir: str = "", metadata: dict = None, runtime_data: RuntimeData = None, output_dir: str = ""):
     _metadata = {}
     if metadata:
         _metadata = metadata
-    
+
     project = None
     if yaml_str:
         project = sage_pipeline.run(
@@ -230,14 +219,14 @@ def scan_project(yaml_str: str="", project_dir: str="", metadata: dict=None, run
             source=_metadata,
             output_dir=output_dir,
         )
-    
+
     if not project:
         raise ValueError("failed to scan the target project; project is None")
 
     policy_input = PolicyInput.from_sage_project(project=project, runtime_data=runtime_data)
     if not policy_input:
         raise ValueError("failed to scan the target project; policy_input is None")
-    
+
     return policy_input
 
 
@@ -273,17 +262,18 @@ class File(object):
             new_obj.data = None
         return new_obj
 
+
 @dataclass
 class Task(object):
     type: str = "task"
     key: str = ""
     name: str = ""
-    
+
     module: str = ""
     index: int = -1
     play_index: int = -1
     filepath: str = ""
-    
+
     role: str = ""
     collection: str = ""
     become: BecomeInfo = None
@@ -340,7 +330,7 @@ class Playbook(object):
     options: dict = field(default_factory=dict)
 
     tasks: List[Task] = field(default_factory=list)
-    
+
     @classmethod
     def from_sage_object(cls, obj: SagePlaybook, proj: SageProject):
         new_obj = Playbook()
@@ -384,7 +374,7 @@ class TaskFile(object):
         new_obj.tasks = [Task.from_sage_object(task, proj) for task in tasks]
 
         return new_obj
-    
+
 
 @dataclass
 class Role(object):
@@ -411,7 +401,7 @@ class Role(object):
 
     # key: filepath, value: TaskFile object
     taskfiles: Dict[str, TaskFile] = field(default_factory=dict)
-    
+
     @classmethod
     def from_sage_object(cls, obj: SageRole, proj: SageProject):
         new_obj = Role()
@@ -421,10 +411,7 @@ class Role(object):
                     setattr(new_obj, k, v)
 
         sage_taskfiles = get_taskfiles_in_role(role=obj, project=proj)
-        new_obj.taskfiles = {
-            sage_taskfile.filepath: TaskFile.from_sage_object(obj=sage_taskfile, proj=proj)
-            for sage_taskfile in sage_taskfiles
-        }
+        new_obj.taskfiles = {sage_taskfile.filepath: TaskFile.from_sage_object(obj=sage_taskfile, proj=proj) for sage_taskfile in sage_taskfiles}
 
         return new_obj
 
