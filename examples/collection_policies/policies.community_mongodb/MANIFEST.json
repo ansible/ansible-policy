@@ -1,0 +1,23 @@
+{
+ "collection_info": {
+  "namespace": "policies",
+  "name": "community_mongodb",
+  "version": "0.0.1",
+  "authors": [
+   ""
+  ],
+  "readme": "README.md",
+  "tags": [
+   "test"
+  ],
+  "description": null,
+  "license": [],
+  "license_file": "",
+  "dependencies": {},
+  "repository": "",
+  "documentation": "",
+  "homepage": "",
+  "issues": ""
+ },
+ "format": 1
+}

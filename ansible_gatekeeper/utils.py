@@ -1,4 +1,5 @@
 import os
+import re
 import base64
 import json
 import tarfile
@@ -16,9 +17,9 @@ def init_logger(name: str, level: str):
         "debug": logging.DEBUG,
     }
 
-    logger = logging.getLogger(name)
     level_val = log_level_map.get(level.lower(), None)
-    logger.setLevel(level_val)
+    logging.basicConfig(level=level_val)
+    logger = logging.getLogger()
     return logger
 
 
@@ -201,3 +202,125 @@ def load_external_data(ftype: str = "", fpath: str = ""):
     else:
         raise NotImplementedError
     return ext_data
+
+
+def match_str_expression(pattern: str, text: str):
+    if not pattern:
+        return True
+
+    if pattern == "*":
+        return True
+
+    if "*" in pattern:
+        pattern = pattern.replace("*", ".*")
+        return re.match(pattern, text)
+
+    return pattern == text
+
+
+def detect_target_module_pattern(policy_path: str):
+    var_name = "__target_module__"
+    pattern = None
+    with open(policy_path, "r") as file:
+        for line in file:
+            if var_name in line:
+                parts = [p.strip() for p in line.split("=")]
+                if len(parts) != 2:
+                    continue
+                if parts[0] == var_name:
+                    pattern = parts[1].strip('"').strip("'")
+                    break
+    return pattern
+
+
+def install_galaxy_target(target, target_type, output_dir, source_repository="", target_version=""):
+    server_option = ""
+    if source_repository:
+        server_option = "--server {}".format(source_repository)
+    target_name = target
+    if target_version:
+        target_name = f"{target}:{target_version}"
+    cmd_str = f"ansible-galaxy {target_type} install {target_name} {server_option} -p {output_dir} --force"
+    logger.debug(cmd_str)
+    proc = subprocess.run(
+        cmd_str,
+        shell=True,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    # print("[DEBUG] stderr:", proc.stderr)
+    # logger.debug("STDOUT:", proc.stdout)
+    logger.debug(f"STDOUT: {proc.stdout}")
+    logger.debug(f"STDERR: {proc.stderr}")
+    if proc.returncode != 0:
+        raise ValueError(f"failed to install a collection `{target}`; error: {proc.stderr}")
+    return proc.stdout, proc.stderr
+
+
+def install_galaxy_collection(name: str, target_dir: str):
+    install_galaxy_target(target=name, target_type="collection", output_dir=target_dir)
+
+
+def run_playbook(playbook_path: str, extra_vars: dict = None):
+    extra_vars_option = ""
+    if extra_vars and isinstance(extra_vars, dict):
+        for key, value in extra_vars.items():
+            value_str = json.dumps(value)
+            extra_vars_option += f"--extra-vars='{key}={value_str}' "
+
+    cmd_str = f"ansible-playbook {playbook_path} {extra_vars_option}"
+    logger.debug(cmd_str)
+    proc = subprocess.run(
+        cmd_str,
+        shell=True,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    logger.debug(cmd_str)
+    proc = subprocess.run(
+        cmd_str,
+        shell=True,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    # print("[DEBUG] stderr:", proc.stderr)
+    # logger.debug("STDOUT:", proc.stdout)
+    logger.debug(f"STDOUT: {proc.stdout}")
+    logger.debug(f"STDERR: {proc.stderr}")
+    if proc.returncode != 0:
+        raise ValueError(f"failed to run a playbook `{playbook_path}`; error: {proc.stderr}")
+    return proc.stdout, proc.stderr
+
+
+def transpile_yml_policy(src: str, dst: str):
+    extra_vars = {
+        "filepath": dst,
+    }
+    run_playbook(playbook_path=src, extra_vars=extra_vars)
+    return
+
+
+def get_tags_from_rego_policy_file(policy_path: str):
+    var_name = "__tags__"
+    tags = None
+    with open(policy_path, "r") as file:
+        for line in file:
+            if var_name in line:
+                parts = [p.strip() for p in line.split("=")]
+                if len(parts) != 2:
+                    continue
+                if parts[0] == var_name:
+                    tags = json.loads(parts[1])
+                    break
+    return tags
+
+
+def match_target_module(module_fqcn: str, rego_path: str):
+    module_pattern = detect_target_module_pattern(policy_path=rego_path)
+    return match_str_expression(module_pattern, module_fqcn)

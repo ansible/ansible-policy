@@ -5,11 +5,11 @@
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 DOCUMENTATION = r"""
-module: run_eval
-short_description: run evaluation with a generated Rego policy
+module: filter
+short_description: define a new filter rule (a rule to filter array) to be transpiled to Rego policy
 version_added: 0.0.1
 description:
-    - Run evaluation with a generated Rego policy
+    - Define a new rule to be transpiled to Rego policy
 author: 'TODO'
 options:
   args:
@@ -25,8 +25,8 @@ EXAMPLES = r"""
 """
 
 RETURN = r"""
-result:
-    description: Result from evaluation
+rego:
+    description: The generated Rego block
     type: str
     returned: always
     sample: ''
@@ -37,43 +37,53 @@ message:
     sample: 'OK'
 """
 
-import subprocess
+import string
 
 from ansible.module_utils.basic import AnsibleModule
 
 
-executable = "ansible-gatekeeper"
+_filter_template = string.Template(
+    r"""
+${rule_name}[${return}] {
+    ${exprs}
+}
+"""
+)
 
 
-def eval_policy(policy_path: str, project_dir: str):
-    cmd_str = f"{executable} -t project -p {project_dir} -r {policy_path}"
-    proc = subprocess.run(
-        cmd_str,
-        shell=True,
-        # stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
+def join_with_separator(str_or_list: str | list, separator: str = ", "):
+    value = ""
+    if isinstance(str_or_list, str):
+        value = str_or_list
+    elif isinstance(str_or_list, list):
+        value = separator.join(str_or_list)
+    return value
+
+
+def create_rego_block(params: dict):
+    rego_block = ""
+    template = _filter_template
+
+    _return = join_with_separator(params["return"])
+    _exprs = join_with_separator(params["exprs"], separator="\n    ")
+
+    rego_block = template.safe_substitute(
+        {
+            "rule_name": params["name"],
+            "return": _return,
+            "exprs": _exprs,
+        }
     )
 
-    result = {
-        "stdout": proc.stdout,
-        "stderr": proc.stderr,
-        "returncode": proc.returncode,
-    }
-    return result
-
-
-# TODO: avoid to use /tmp
-def get_filepath(policy_name: str):
-    return f"/tmp/{policy_name}.rego"
+    return rego_block
 
 
 def main():
     # define available arguments/parameters a user can pass to the module
     module_args = {
-        "policy": dict(type="str", required=False, default="ansible_sample_policy"),
-        "project": dict(type="str", required=True),
+        "name": dict(type="str", required=True),
+        "exprs": dict(type="list", required=False),
+        "return": dict(type="list", required=False),
     }
 
     # seed the result dict in the object
@@ -82,7 +92,7 @@ def main():
     # state will include any data that you want your module to pass back
     # for consumption, for example, in a subsequent task
     success = False
-    result = dict(changed=False, rego_block="", message="")
+    result = dict(changed=False, rego="", message="")
 
     # the AnsibleModule object will be our abstraction working with Ansible
     # this includes instantiation, a couple of common attr would be the
@@ -99,26 +109,22 @@ def main():
     # manipulate or modify the state as needed (this is going to be the
     # part where your module will do what it needs to do)
 
-    policy_path = get_filepath(policy_name=module.params["policy"])
-
-    eval_result = eval_policy(
-        policy_path=policy_path,
-        project_dir=module.params["project"],
-    )
+    rego_block = create_rego_block(module.params)
 
     success = True
-    result["result"] = eval_result
+    result["message"] = "OK"
 
     # use whatever logic you need to determine whether or not this module
     # made any modifications to your target
     if success:
-        result["result"] = eval_result
+        result["changed"] = True
+        result["rego"] = rego_block
 
     # during the execution of the module, if there is an exception or a
     # conditional state that effectively causes a failure, run
     # AnsibleModule.fail_json() to pass in the message and the result
-    if eval_result.get("returncode", 1) != 0:
-        module.fail_json(msg="Policy violation detected", **result)
+    if module.params["name"] == "fail me":
+        module.fail_json(msg="You requested this to fail", **result)
 
     # in the event of a successful module execution, you will want to
     # simple AnsibleModule.exit_json(), passing the key/value results
