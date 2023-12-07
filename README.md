@@ -2,7 +2,7 @@
 
 ## Getting started
 
-### 1. install `opa` command
+### 1. Install `opa` command
 
 refer to OPA [document](https://github.com/open-policy-agent/opa#want-to-download-opa)
 
@@ -10,14 +10,14 @@ refer to OPA [document](https://github.com/open-policy-agent/opa#want-to-downloa
 
 clone this repository
 
-### 3. install `ansbile-gatekeeper` command
+### 3. Install `ansbile-gatekeeper` command
 
 ```bash
 $ cd ansible-gatekeeper
 $ pip install -e .
 ```
 
-### 4. install `gatekeeper.rego` modules
+### 4. iInstall `gatekeeper.rego` modules
 
 ```bash
 $ ansible-galaxy collection install collections/gatekeeper.rego --force
@@ -30,9 +30,9 @@ Created collection for gatekeeper.rego:0.0.1 at /Users/user/.ansible/collections
 gatekeeper.rego:0.0.1 was installed successfully
 ```
 
-### 5. running ansible-gatekeeper with example policies
+### 5. Configure policies
 
-[The example config file](examples/ansible-gatekeeper.cfg) has 2 fields `policy` and `source`.
+A configuration for ansible-gatekeeper is something like the following.
 
 ```ini
 [policy]
@@ -46,17 +46,19 @@ policies.community.mongodb = examples/policies-community_mongodb-0.0.1.tar.gz   
 policies.org.compliance    = examples/org_wide_policies/compliance    # org-wide compliance policy
 ```
 
+`policy` field is a configuration like iptable to enable/disable installed policies. Users can use tag for configuring this in detail.
 
-`source` is a list of modules and their source like ansible-galaxy or local directory. ansible-gatekeeper installs policies based on this configuration.
+`source` field is a list of module packages and their source like ansible-galaxy or local directory. ansible-gatekeeper installs policies based on this configuration.
 
-`policy` is a configuration like iptable to enable/disable policies. Users can use tag for configuring this in detail.
-
-This example is configured to enable the follwoing 2 policies.
+The example above is configured to enable the follwoing 2 policies.
 
 - `mongodb_user_db_policy`: check if a database name which is used in the task is allowed or not, for tasks using `community.mongodb.mongodb_user`.
 - `check_become_policy`: check if `become: true` is used or not for all tasks
 
-Then, [The example playbook](examples/project/playbook.yml) has some tasks that violate the 2 policies above.
+
+### 6. Running policy evaluation on a playbook
+
+[The example playbook](examples/project/playbook.yml) has some tasks that violate the 2 policies above.
 
 ansible-gatekeeper can report these violations like the following.
 
@@ -69,6 +71,6 @@ $ ansible-gatekeeper -p examples/project/playbook.yml -c examples/ansible-gateke
 
 
 ```
-NOTE: Only first time you run the command below, ansible-gatekeeper installs policy files based on the configuration.
+NOTE: Only first time you run the command above, ansible-gatekeeper installs policy files based on the configuration.
       If you changed your policy files, please reinstall them by removing the installed policies manually. They are installed `/tmp/ansible-gatekeeper/installed_policies` by default.
 ```
