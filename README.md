@@ -70,6 +70,10 @@ $ ansible-gatekeeper -p examples/project/playbook.yml -c examples/ansible-gateke
 <img src="images/example_output.png" width="600px">
 
 
+[The third task](examples/project/playbook.yml#L15) `Create mongodb user` is using a database `not-allowed-db` by a variable, and the variable is successfully resolved and this value is reported as a policy violation.
+
+[The fourth task](examples/project/playbook.yml#L23) `Touch a file with root permission` is creating a file with a root permission by using `become: true`, and this is detected by the policy `check_become_policy`.
+
 
 ```
 NOTE: Only first time you run the command above, ansible-gatekeeper installs policy files based on the configuration.
