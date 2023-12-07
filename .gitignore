@@ -6,3 +6,4 @@ venv
 output.json
 *.bak
 test
+.DS_Store

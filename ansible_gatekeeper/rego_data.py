@@ -1,5 +1,6 @@
 import os
 import sys
+import copy
 import tempfile
 import jsonpickle
 import json
@@ -44,6 +45,10 @@ with open(_util_rego_path, "r") as util_rego_file:
     _util_rego = util_rego_file.read()
 
 
+InputTypeTask = "task"
+InputTypeProject = "project"
+
+
 @dataclass
 class RuntimeData(object):
     extra_vars: dict = field(default_factory=dict)
@@ -69,109 +74,43 @@ class RuntimeData(object):
         return data
 
 
-@dataclass
-class PolicyInput(object):
-    source: dict = field(default_factory=dict)
-    project: any = None
-    playbooks: dict = field(default_factory=dict)
-    taskfiles: dict = field(default_factory=dict)
-    roles: dict = field(default_factory=dict)
-    vars_files: dict = field(default_factory=dict)
+def get_all_set_vars(project: SageProject, common_vars: dict = None):
+    entrypoints = list_entrypoints(project=project)
+    entry_and_objs = []
+    variables = {}
+    for entry in entrypoints:
+        if isinstance(entry, SageRole):
+            taskfiles = get_taskfiles_in_role(role=entry, project=project)
+            for tf in taskfiles:
+                entry_and_objs.append((entry, tf))
+        else:
+            entry_and_objs.append((entry, entry))
 
-    extra_vars: dict = field(default_factory=dict)
-
-    variables: dict = field(default_factory=dict)
-
-    # TODO: imeplement attrs below
-    # modules
-    # files
-    # others?
-
-    @staticmethod
-    def from_sage_project(project: SageProject, runtime_data: RuntimeData = None):
-        p_input = PolicyInput()
-        p_input.source = project.source
-        p_input.playbooks = {playbook.filepath: Playbook.from_sage_object(obj=playbook, proj=project) for playbook in project.playbooks}
-        p_input.taskfiles = {taskfile.filepath: TaskFile.from_sage_object(obj=taskfile, proj=project) for taskfile in project.taskfiles}
-        p_input.roles = {role.filepath: Role.from_sage_object(obj=role, proj=project) for role in project.roles}
-        if project.projects:
-            p_input.project = project.projects[0]
-
-        files = {}
-        for file in project.files:
-            files[file.filepath] = File.from_sage_object(obj=file)
-        p_input.vars_files = files
-
-        if runtime_data:
-            p_input.extra_vars = runtime_data.extra_vars
-
-        _common_vars = {}
-        for file in p_input.vars_files.values():
-            if file.data:
-                _common_vars.update(file.data)
-
-        if p_input.extra_vars:
-            _common_vars.update(p_input.extra_vars)
-
-        variables = p_input.get_all_set_vars(project=project, common_vars=_common_vars)
-        p_input.variables = variables
-
-        return p_input
-
-    def to_json(self, **kwargs):
-        kwargs["value"] = self
-        kwargs["make_refs"] = False
-        kwargs["separators"] = (",", ":")
-        return jsonpickle.encode(**kwargs)
-
-    @staticmethod
-    def from_json(json_str: str = "", fpath: str = ""):
-        if not json_str and fpath:
-            with open(fpath, "r") as file:
-                json_str = file.read()
-
-        p_input = jsonpickle.decode(json_str)
-        if not isinstance(p_input, PolicyInput):
-            raise ValueError(f"a decoded object is not a PolicyInput, but {type(p_input)}")
-        return p_input
-
-    def get_all_set_vars(self, project: SageProject, common_vars: dict = None):
-        entrypoints = list_entrypoints(project=project)
-        entry_and_objs = []
-        variables = {}
-        for entry in entrypoints:
-            if isinstance(entry, SageRole):
-                taskfiles = get_taskfiles_in_role(role=entry, project=project)
-                for tf in taskfiles:
-                    entry_and_objs.append((entry, tf))
+    object_data_list = []
+    for (entrypoint, object) in entry_and_objs:
+        if isinstance(object, SagePlaybook):
+            playbook_data = PlaybookData(object=object, project=project)
+            object_data_list.append(playbook_data)
+        elif isinstance(object, SageTaskFile):
+            taskfile_data = None
+            if isinstance(entrypoint, SageRole):
+                taskfile_data = TaskFileData(object=object, project=project, role=entrypoint)
             else:
-                entry_and_objs.append((entry, entry))
-
-        object_data_list = []
-        for (entrypoint, object) in entry_and_objs:
-            if isinstance(object, SagePlaybook):
-                playbook_data = PlaybookData(object=object, project=project)
-                object_data_list.append(playbook_data)
-            elif isinstance(object, SageTaskFile):
-                taskfile_data = None
-                if isinstance(entrypoint, SageRole):
-                    taskfile_data = TaskFileData(object=object, project=project, role=entrypoint)
-                else:
-                    taskfile_data = TaskFileData(object=object, project=project)
-                object_data_list.append(taskfile_data)
-        for object_data in object_data_list:
-            # variable_container function
-            set_vars, role_vars = get_set_vars_from_data(pd=object_data)
-            _all_vars = {}
-            if role_vars:
-                _all_vars.update(role_vars)
-            if set_vars:
-                _all_vars.update(set_vars)
-            if common_vars:
-                _all_vars.update(common_vars)
-            entry_key = object_data.object.key
-            variables.update({entry_key: _all_vars})
-        return variables
+                taskfile_data = TaskFileData(object=object, project=project)
+            object_data_list.append(taskfile_data)
+    for object_data in object_data_list:
+        # variable_container function
+        set_vars, role_vars = get_set_vars_from_data(pd=object_data)
+        _all_vars = {}
+        if role_vars:
+            _all_vars.update(role_vars)
+        if set_vars:
+            _all_vars.update(set_vars)
+        if common_vars:
+            _all_vars.update(common_vars)
+        entry_key = object_data.object.key
+        variables.update({entry_key: _all_vars})
+    return variables
 
 
 def load_input_from_jobdata(jobdata_path: str = ""):
@@ -198,53 +137,9 @@ def load_input_from_project_dir(project_dir: str = ""):
     return policy_input
 
 
-def process_input_data_with_external_data(input_data: PolicyInput, external_data_path: str):
-    galaxy = load_external_data(ftype="galaxy", fpath=external_data_path)
-
-    # set `task.module_fqcn` by using galaxy FQCN list
-    for playbook in input_data.playbooks.values():
-        for task in playbook.tasks:
-            embed_module_fqcn_with_galaxy(task=task, galaxy=galaxy)
-
-    for taskfile in input_data.taskfiles.values():
-        for task in taskfile.tasks:
-            embed_module_fqcn_with_galaxy(task=task, galaxy=galaxy)
-
-    for role in input_data.roles.values():
-        for taskfile in role.taskfiles.values():
-            for task in taskfile.tasks:
-                embed_module_fqcn_with_galaxy(task=task, galaxy=galaxy)
-
-    input_data_str = input_data.to_json()
-    return input_data_str
-
-
-# make policy input data by scanning target project
-def make_policy_input(target_path: str, metadata: dict = {}) -> PolicyInput:
-    fpath = ""
-    dpath = ""
-    if os.path.isfile(target_path):
-        fpath = os.path.abspath(target_path)
-    else:
-        dpath = os.path.abspath(target_path)
-
-    runtime_data = RuntimeData.load(dir=target_path)
-
-    policy_input = None
-    if fpath:
-        yaml_str = ""
-        with open(fpath, "r") as file:
-            yaml_str = file.read()
-        policy_input = scan_project(yaml_str=yaml_str, metadata=metadata, runtime_data=runtime_data)
-    elif dpath:
-        policy_input = scan_project(project_dir=dpath, metadata=metadata, runtime_data=runtime_data)
-    else:
-        raise ValueError(f"`{target_path}` does not exist")
-
-    return policy_input
-
-
-def scan_project(yaml_str: str = "", project_dir: str = "", metadata: dict = None, runtime_data: RuntimeData = None, output_dir: str = ""):
+def scan_project(
+    input_type: str, yaml_str: str = "", project_dir: str = "", metadata: dict = None, runtime_data: RuntimeData = None, output_dir: str = ""
+):
     _metadata = {}
     if metadata:
         _metadata = metadata
@@ -266,7 +161,11 @@ def scan_project(yaml_str: str = "", project_dir: str = "", metadata: dict = Non
     if not project:
         raise ValueError("failed to scan the target project; project is None")
 
-    policy_input = PolicyInput.from_sage_project(project=project, runtime_data=runtime_data)
+    if input_type == InputTypeProject:
+        policy_input = PolicyInput.from_sage_project(project=project, runtime_data=runtime_data)
+    elif input_type == InputTypeTask:
+        policy_input = PolicyInput.from_sage_project(project=project, runtime_data=runtime_data, input_type=InputTypeTask)
+
     if not policy_input:
         raise ValueError("failed to scan the target project; policy_input is None")
 
@@ -492,3 +391,140 @@ class Project(object):
                 if hasattr(new_obj, k):
                     setattr(new_obj, k, v)
         return new_obj
+
+
+@dataclass
+class PolicyInput(object):
+    source: dict = field(default_factory=dict)
+    project: any = None
+    playbooks: dict = field(default_factory=dict)
+    taskfiles: dict = field(default_factory=dict)
+    roles: dict = field(default_factory=dict)
+
+    task: Task = None
+
+    vars_files: dict = field(default_factory=dict)
+
+    extra_vars: dict = field(default_factory=dict)
+
+    variables: dict = field(default_factory=dict)
+
+    # TODO: imeplement attrs below
+    # modules
+    # files
+    # others?
+
+    @staticmethod
+    def from_sage_project(project: SageProject, runtime_data: RuntimeData = None, input_type: str = ""):
+        if input_type == InputTypeTask:
+            base_input_list = PolicyInput.from_sage_project(project=project, runtime_data=runtime_data)
+            base_input = base_input_list[0]
+            tasks = []
+            for playbook in base_input.playbooks.values():
+                tasks.extend(playbook.tasks)
+            for taskfile in base_input.taskfiles.values():
+                tasks.extend(taskfile.tasks)
+            for role in base_input.roles.values():
+                for taskfile in role.taskfiles.values():
+                    tasks.extend(taskfile.tasks)
+            p_input_list = []
+            for task in tasks:
+                p_input = copy.deepcopy(base_input)
+                p_input.task = task
+                p_input_list.append(p_input)
+            return p_input_list
+        else:
+            p_input = PolicyInput()
+            p_input.source = project.source
+            p_input.playbooks = {playbook.filepath: Playbook.from_sage_object(obj=playbook, proj=project) for playbook in project.playbooks}
+            p_input.taskfiles = {taskfile.filepath: TaskFile.from_sage_object(obj=taskfile, proj=project) for taskfile in project.taskfiles}
+            p_input.roles = {role.filepath: Role.from_sage_object(obj=role, proj=project) for role in project.roles}
+            if project.projects:
+                p_input.project = project.projects[0]
+
+            files = {}
+            for file in project.files:
+                files[file.filepath] = File.from_sage_object(obj=file)
+            p_input.vars_files = files
+
+            if runtime_data:
+                p_input.extra_vars = runtime_data.extra_vars
+
+            _common_vars = {}
+            for file in p_input.vars_files.values():
+                if file.data:
+                    _common_vars.update(file.data)
+
+            if p_input.extra_vars:
+                _common_vars.update(p_input.extra_vars)
+
+            variables = get_all_set_vars(project=project, common_vars=_common_vars)
+            p_input.variables = variables
+
+            return [p_input]
+
+    def to_json(self, **kwargs):
+        kwargs["value"] = self
+        kwargs["make_refs"] = False
+        kwargs["separators"] = (",", ":")
+        return jsonpickle.encode(**kwargs)
+
+    @staticmethod
+    def from_json(json_str: str = "", fpath: str = ""):
+        if not json_str and fpath:
+            with open(fpath, "r") as file:
+                json_str = file.read()
+
+        p_input = jsonpickle.decode(json_str)
+        if not isinstance(p_input, PolicyInput):
+            raise ValueError(f"a decoded object is not a PolicyInput, but {type(p_input)}")
+        return p_input
+
+
+def process_input_data_with_external_data(input_type: str, input_data: PolicyInput, external_data_path: str):
+    galaxy = load_external_data(ftype="galaxy", fpath=external_data_path)
+
+    if input_type == InputTypeTask:
+        task = input_data.task
+        embed_module_fqcn_with_galaxy(task=task, galaxy=galaxy)
+    else:
+        # set `task.module_fqcn` by using galaxy FQCN list
+        for filename, playbook in input_data.playbooks.items():
+            for task in playbook.tasks:
+                embed_module_fqcn_with_galaxy(task=task, galaxy=galaxy)
+
+        for filename, taskfile in input_data.taskfiles.items():
+            for task in taskfile.tasks:
+                embed_module_fqcn_with_galaxy(task=task, galaxy=galaxy)
+
+        for role_name, role in input_data.roles.items():
+            for filename, taskfile in role.taskfiles.items():
+                for task in taskfile.tasks:
+                    embed_module_fqcn_with_galaxy(task=task, galaxy=galaxy)
+
+    return input_data
+
+
+# make policy input data by scanning target project
+def make_policy_input(target_path: str, metadata: dict = {}) -> List[PolicyInput]:
+    fpath = ""
+    dpath = ""
+    if os.path.isfile(target_path):
+        fpath = os.path.abspath(target_path)
+    else:
+        dpath = os.path.abspath(target_path)
+
+    runtime_data = RuntimeData.load(dir=target_path)
+
+    policy_input = None
+    if fpath:
+        yaml_str = ""
+        with open(fpath, "r") as file:
+            yaml_str = file.read()
+        policy_input = scan_project(input_type=InputTypeTask, yaml_str=yaml_str, metadata=metadata, runtime_data=runtime_data)
+    elif dpath:
+        policy_input = scan_project(input_type=InputTypeTask, project_dir=dpath, metadata=metadata, runtime_data=runtime_data)
+    else:
+        raise ValueError(f"`{target_path}` does not exist")
+
+    return policy_input
