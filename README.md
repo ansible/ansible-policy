@@ -55,6 +55,7 @@ The example above is configured to enable the follwoing 2 policies.
 - `mongodb_user_db_policy`: check if a database name which is used in the task is allowed or not, for tasks using `community.mongodb.mongodb_user`.
 - `check_become_policy`: check if `become: true` is used or not for all tasks
 
+You can use [the example config file](examples/ansible-gatekeeper.cfg) for the next step.
 
 ### 6. Running policy evaluation on a playbook
 
