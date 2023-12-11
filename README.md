@@ -52,8 +52,8 @@ policies.org.compliance    = examples/org_wide_policies/compliance    # org-wide
 
 The example above is configured to enable the follwoing 2 policies.
 
-- `mongodb_user_db_policy`: check if a database name which is used in the task is allowed or not, for tasks using `community.mongodb.mongodb_user`.
-- `check_become_policy`: check if `become: true` is used or not for all tasks
+- `mongodb_user_db_policy` ([yaml](./examples/collection_policies/policies.community_mongodb/policies/check_database_name.yml), [rego](./examples/collection_policies/policies.community_mongodb/policies/check_database_name_generated.rego)): check if a database name which is used in the task is allowed or not, for tasks using `community.mongodb.mongodb_user`.
+- `check_become_policy` ([yaml](./examples/org_wide_policies/compliance/policies/check_become.yml), [rego](./examples/org_wide_policies/compliance/policies/check_become_generated.rego)): check if `become: true` is used or not for all tasks
 
 You can use [the example config file](examples/ansible-gatekeeper.cfg) for the next step.
 
