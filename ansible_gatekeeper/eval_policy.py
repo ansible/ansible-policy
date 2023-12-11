@@ -48,7 +48,7 @@ def main():
         for i, result_per_task in enumerate(results):
             task = result_per_task.get("task")
             result_for_policies = result_per_task.get("result")
-            print(f"TASK [{task.name}] ".ljust(term_width, "*"))
+            print(f"TASK [{task.name}] ".ljust(term_width, "*"), file=sys.stderr)
             for policy_name, result in result_for_policies.items():
                 flag = ""
                 # disp_result = {k: v for k, v in result.items() if not k.startswith("_")}
@@ -69,12 +69,13 @@ def main():
                     if sys.stdout.isatty():
                         msg = f"\033[96m{msg}\033[00m"
                         flag = f"\033[96m{flag}\033[00m"
-                    # print(msg, file=sys.stderr)
-                    # if runner_jobdata_str:
-                    #     print(runner_jobdata_str)
-                print("...", policy_name, flag)
-            print("")
-        print("---")
+                    else:
+                        # print(msg, file=sys.stderr)
+                        if runner_jobdata_str:
+                            print(runner_jobdata_str)
+                print("...", policy_name, flag, file=sys.stderr)
+            print("", file=sys.stderr)
+        print("---", file=sys.stderr)
         msg = ""
         if violation_count > 0:
             msg = f"Summary: \033[91mThe {violation_count} tasks have violations!\033[00m (out of {total_tasks} tasks)"
