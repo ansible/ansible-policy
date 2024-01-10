@@ -7,7 +7,7 @@ Ansible Gatekeeper is a prototype implementation which allows us to define and s
 - Policies can be packed as an ansible collection.
 - Users can define policy in Ansible YAML format (playbook). It can be auto-transformed with `gatekeeper.rego` modules.
 
-<img width="992" alt="agk-arch" src="https://media.github.ibm.com/user/4191/files/f088cacb-c0ee-47cd-b163-dcd809ea87bf">
+<img width="992" alt="agk-arch" src="./images/agk-arch.png">
 
 ## Getting started
 
