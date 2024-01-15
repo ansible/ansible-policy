@@ -1,0 +1,25 @@
+- PoliciesSet:
+    hosts:
+    - localhost
+    name: Check for mysql package installation
+    vars:
+    - allowed_packages:
+      - mysql
+    policies:
+    - Policy:
+        actions:
+        - Action:
+            action: deny
+            action_args:
+              msg: The package {{ module }} is not allowed
+        condition:
+          AllCondition:
+          - EqualsExpression:
+              lhs:
+                String: module
+              rhs:
+                String: custom.unauthorized.package
+        enabled: true
+        name: Check for package name
+    sources: []
+
