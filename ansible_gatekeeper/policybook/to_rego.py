@@ -6,18 +6,6 @@ import argparse
 import json
 
 
-_func_template = string.Template(r"""
-${func_name}(${args}) := ${return} {
-    ${steps}
-}
-""")
-
-_filter_template = string.Template(r"""
-${func_name}[${key}] {
-    ${steps}
-}
-""")
-
 _if_template = string.Template(r"""
 ${func_name} = true if {
     ${steps}
@@ -26,17 +14,28 @@ ${func_name} = true if {
 
 
 @dataclass
-class RuleSet:
-    hosts: List[str]
-    name: str
-    rules: list
+class RegoCondition:
+    name: str = ""
+    conditions: list = field(default_factory=list)
 
+    def to_rego_func(self):
+        template = _if_template
+
+        _steps = "\n".join(self.conditions)
+        _name = self.name
+        if " " in self.name:
+            _name = self.name.replace(" ", "_") 
+        rego_block = template.safe_substitute({
+            "func_name": _name,
+            "steps": _steps,
+        })
+        return rego_block
 
 @dataclass
 class RegoPolicy:
     package: str = ""
     import_statements: List[str] = field(default_factory=list)
-    rulesets: List[RuleSet] = field(default_factory=list)
+    rulesets: List[RegoCondition] = field(default_factory=list)
     vars_declaration: list = field(default_factory=list)
     
     def to_rego(self):
@@ -52,27 +51,16 @@ class RegoPolicy:
                     content.append(f"{var_name} = {val}")
 
         # rules
-        for rule in self.rulesets:
-            content.append(rule)
+        for rc in self.rulesets:
+            rf = rc.to_rego_func()
+            content.append(rf)
             content.append("\n")
         
         content_str = "\n".join(content)
         return content_str
 
 
-def convert_condition_to_rule(condition_data):
-    rules = []
-    if "AllCondition" in condition_data:
-        conditions = [convert_condition_to_rule(cond) for cond in condition_data["AllCondition"]]
-        rules.extend(conditions)
-    elif "EqualsExpression" in condition_data:
-        lhs = list(condition_data["EqualsExpression"]["lhs"].keys())[0]
-        rhs = list(condition_data["EqualsExpression"]["rhs"].keys())[0]
-        return f"{lhs} == {rhs}"
-
-
-
-def generate_rego_from_ast(input):
+def generate_rego_from_ast(input, output):
     # load ast file
     ast_data = {}
     with open(input, "r") as f:
@@ -91,7 +79,10 @@ def generate_rego_from_ast(input):
         raise ValueError("name field is empty")
 
     rego_policy = RegoPolicy()
-    rego_policy.package = ps["name"]
+    _package = ps["name"]
+    if " " in ps["name"]:
+        _package = ps["name"].replace(" ", "_")
+    rego_policy.package = _package
     rego_policy.import_statements = [
         "import future.keywords.if",
         "import future.keywords.in",
@@ -100,31 +91,57 @@ def generate_rego_from_ast(input):
     rego_policy.vars_declaration = ps.get("vars", [])
 
     rules = []
-    for pol in ps.get("policies", []):
+    for p in ps.get("policies", []):
+        pol = p.get("Policy", {})
         # condition -> rule
-        rule = condition_to_rule(pol)
-        rules.append(rule)
+        rc = RegoCondition()
+        rc.name = pol.get("name", "")
+        condition = pol.get("condition", {})
+        rule = condition_to_rule(condition)
+        rc.conditions = rule
+        rules.append(rc)
+
     rego_policy.rulesets = rules
 
-
-    output = rego_policy.to_rego()
+    rego_output = rego_policy.to_rego()
     print("----- test output\n")
-    print(output)
+    print(rego_output)
+
+    with open(output, "w") as f:
+        f.write(rego_output)
     return
 
 
-def condition_to_rule(condition):
-    return
+def condition_to_rule(condition: dict):
+    rules = []
+    if "AllCondition" in condition:
+        all_rules = [convert_condition(cond) for cond in condition["AllCondition"]]
+        rules.extend(all_rules)
+    else:
+        rule = convert_condition(condition)
+        rules.append(rule)
+    return rules
+
+def convert_condition(condition):
+    print("debug: condition", condition)
+    if "EqualsExpression" in condition:
+        lhs = condition["EqualsExpression"]["lhs"]
+        lhs_val = list(lhs.values())[0]
+        rhs = condition["EqualsExpression"]["rhs"]
+        rhs_val = list(rhs.values())[0]
+        return f"{lhs_val} == {rhs_val}"
 
 
 def main():
     parser = argparse.ArgumentParser(description="TODO")
     parser.add_argument("-f", "--file", help='')
+    parser.add_argument("-o", "--output", help='')
     args = parser.parse_args()
 
     fpath = args.file
+    out_fpath = args.output
 
-    generate_rego_from_ast(fpath)
+    generate_rego_from_ast(fpath, out_fpath)
 
 
 if __name__ == "__main__":

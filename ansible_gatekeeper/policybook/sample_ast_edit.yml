@@ -16,7 +16,7 @@
           AllCondition:
           - EqualsExpression:
               lhs:
-                String: module
+                String: input.task.module
               rhs:
                 String: custom.unauthorized.package
         enabled: true
