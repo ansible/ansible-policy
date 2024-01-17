@@ -68,7 +68,8 @@ class RegoPolicy:
     import_statements: List[str] = field(default_factory=list)
     condition_func: RegoFunc = field(default_factory=RegoFunc)
     action_func: RegoFunc = field(default_factory=RegoFunc)
-    vars_declaration: list = field(default_factory=list)
+    vars_declaration: dict = field(default_factory=dict)
+    tags: List[str] = field(default_factory=list)
     
     def to_rego(self):
         content = []
@@ -76,20 +77,23 @@ class RegoPolicy:
         content.append("\n")
         content.extend(self.import_statements)
         content.append("\n")
+        # tags
+        if self.tags:
+            tags_str = json.dumps(self.tags)
+            content.append(f"__tags__ = {tags_str}")
+            content.append("\n")
         # vars
         if self.vars_declaration:
-            for vars in self.vars_declaration:
-                for var_name, val in vars.items():
-                    content.append(f"{var_name} = {val}")
+            for var_name, val in self.vars_declaration.items():
+                val_str = json.dumps(val)
+                content.append(f"{var_name} = {val_str}")
 
         # rules
         rf = self.condition_func.to_rego_func()
         content.append(rf)
-        content.append("\n")
 
         rf = self.action_func.to_rego_func()
         content.append(rf)
-        content.append("\n")
             
         content_str = "\n".join(content)
         return content_str
@@ -118,15 +122,20 @@ def generate_rego_from_ast(input, output):
         pol = p.get("Policy", {})
 
         rego_policy = RegoPolicy()
+        # package
         _package = ps["name"]
         if " " in ps["name"]:
             _package = ps["name"].replace(" ", "_")
         rego_policy.package = _package
+        # import statements
         rego_policy.import_statements = [
             "import future.keywords.if",
             "import future.keywords.in",
             "import data.ansible_gatekeeper.resolve_var"
         ]
+        # tags
+        rego_policy.tags = pol.get("tags", [])
+        # vars
         rego_policy.vars_declaration = ps.get("vars", [])
 
         # condition -> rule
@@ -200,6 +209,12 @@ def convert_condition(condition: dict):
         rhs = condition["EqualsExpression"]["rhs"]
         rhs_val = list(rhs.values())[0]
         return f"{lhs_val} == {rhs_val}"
+    elif "ItemNotInListExpression" in condition:
+        lhs = condition["ItemNotInListExpression"]["lhs"]
+        lhs_val = list(lhs.values())[0]
+        rhs = condition["ItemNotInListExpression"]["rhs"]
+        rhs_val = list(rhs.values())[0]
+        return f"not {lhs_val} in {rhs_val}"
 
 
 def main():

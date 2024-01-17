@@ -8,14 +8,13 @@
         - Action:
             action: deny
             action_args:
-              msg: The package {{ input["ansible.builtin.package"].name }} is not
-                allowed, allowed packages are one of {{ allowed_packages.join(", ")
-                }}
+              msg: The package {{ input.task.module }} is not allowed, allowed packages
+                are one of {{ allowed_packages.join(", ") }}
         condition:
           AllCondition:
           - ItemNotInListExpression:
               lhs:
-                String: input["ansible.bultin.package"].name
+                String: input.task.module
               rhs:
                 String: allowed_packages
         enabled: true
