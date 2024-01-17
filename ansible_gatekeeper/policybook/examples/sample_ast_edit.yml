@@ -1,4 +1,4 @@
-- PoliciesSet:
+- PolicySet:
     hosts:
     - localhost
     name: Check for mysql package installation
@@ -11,7 +11,7 @@
         - Action:
             action: deny
             action_args:
-              msg: The package {{ module }} is not allowed
+              msg: The package {{ input.task.module }} is not allowed
         condition:
           AllCondition:
           - EqualsExpression:

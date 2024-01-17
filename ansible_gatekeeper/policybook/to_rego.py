@@ -4,6 +4,27 @@ from typing import List, Dict
 import string
 import argparse
 import json
+import os
+import re
+
+
+OPERATOR_MNEMONIC = {
+    "!=": "NotEqualsExpression",
+    "==": "EqualsExpression",
+    "and": "AndExpression",
+    "or": "OrExpression",
+    ">": "GreaterThanExpression",
+    "<": "LessThanExpression",
+    ">=": "GreaterThanOrEqualToExpression",
+    "<=": "LessThanOrEqualToExpression",
+    "+": "AdditionExpression",
+    "-": "SubtractionExpression",
+    "<<": "AssignmentExpression",
+    "in": "ItemInListExpression",
+    "not in": "ItemNotInListExpression",
+    "contains": "ListContainsItemExpression",
+    "not contains": "ListNotContainsItemExpression",
+}
 
 
 _if_template = string.Template(r"""
@@ -14,14 +35,14 @@ ${func_name} = true if {
 
 
 @dataclass
-class RegoCondition:
+class RegoFunc:
     name: str = ""
-    conditions: list = field(default_factory=list)
+    rules: list = field(default_factory=list)
 
     def to_rego_func(self):
         template = _if_template
 
-        _steps = "\n".join(self.conditions)
+        _steps = join_with_separator(self.rules, separator="\n    ")
         _name = self.name
         if " " in self.name:
             _name = self.name.replace(" ", "_") 
@@ -31,11 +52,22 @@ class RegoCondition:
         })
         return rego_block
 
+
+def join_with_separator(str_or_list: str | list, separator: str=", "):
+    value = ""
+    if isinstance(str_or_list, str):
+        value = str_or_list
+    elif isinstance(str_or_list, list):
+        value = separator.join(str_or_list)
+    return value
+
+
 @dataclass
 class RegoPolicy:
     package: str = ""
     import_statements: List[str] = field(default_factory=list)
-    rulesets: List[RegoCondition] = field(default_factory=list)
+    condition_func: RegoFunc = field(default_factory=RegoFunc)
+    action_func: RegoFunc = field(default_factory=RegoFunc)
     vars_declaration: list = field(default_factory=list)
     
     def to_rego(self):
@@ -51,11 +83,14 @@ class RegoPolicy:
                     content.append(f"{var_name} = {val}")
 
         # rules
-        for rc in self.rulesets:
-            rf = rc.to_rego_func()
-            content.append(rf)
-            content.append("\n")
-        
+        rf = self.condition_func.to_rego_func()
+        content.append(rf)
+        content.append("\n")
+
+        rf = self.action_func.to_rego_func()
+        content.append(rf)
+        content.append("\n")
+            
         content_str = "\n".join(content)
         return content_str
 
@@ -71,47 +106,81 @@ def generate_rego_from_ast(input, output):
     
     ad = ast_data[0]
 
-    if "PoliciesSet" not in ad:
+    if "PolicySet" not in ad:
         raise ValueError("no policy found")
 
-    ps = ad["PoliciesSet"]
+    ps = ad["PolicySet"]
     if "name" not in ps:
         raise ValueError("name field is empty")
 
-    rego_policy = RegoPolicy()
-    _package = ps["name"]
-    if " " in ps["name"]:
-        _package = ps["name"].replace(" ", "_")
-    rego_policy.package = _package
-    rego_policy.import_statements = [
-        "import future.keywords.if",
-        "import future.keywords.in",
-        "import data.ansible_gatekeeper.resolve_var"
-    ]
-    rego_policy.vars_declaration = ps.get("vars", [])
-
-    rules = []
+    policies = []
     for p in ps.get("policies", []):
         pol = p.get("Policy", {})
+
+        rego_policy = RegoPolicy()
+        _package = ps["name"]
+        if " " in ps["name"]:
+            _package = ps["name"].replace(" ", "_")
+        rego_policy.package = _package
+        rego_policy.import_statements = [
+            "import future.keywords.if",
+            "import future.keywords.in",
+            "import data.ansible_gatekeeper.resolve_var"
+        ]
+        rego_policy.vars_declaration = ps.get("vars", [])
+
         # condition -> rule
-        rc = RegoCondition()
-        rc.name = pol.get("name", "")
+        r_func = RegoFunc()
+        _name = pol.get("name", "")
+        if " " in _name:
+            _name = _name.replace(" ", "_")
+        r_func.name = _name 
         condition = pol.get("condition", {})
         rule = condition_to_rule(condition)
-        rc.conditions = rule
-        rules.append(rc)
+        r_func.rules = rule
+        rego_policy.condition_func = r_func
+        
+        action = pol.get("actions", [])[0]
+        r_func = RegoFunc()
+        action_type, rule = action_to_rule(action, rego_policy.condition_func)
+        r_func.name = action_type
+        r_func.rules = rule
+        rego_policy.action_func = r_func
+        
+        policies.append(rego_policy)
 
-    rego_policy.rulesets = rules
-
-    rego_output = rego_policy.to_rego()
-    print("----- test output\n")
-    print(rego_output)
-
-    with open(output, "w") as f:
-        f.write(rego_output)
+    for rpol in policies:
+        rego_output = rpol.to_rego()
+        with open(os.path.join(output, f"{rpol.package}.rego"), "w") as f:
+            f.write(rego_output)
     return
 
 
+def action_to_rule(input: dict, condition: RegoFunc):
+    action = input["Action"]
+    rules = []
+    action_type = action.get("action", "")
+    action_args = action.get("action_args", "")
+    if action_type == "deny":
+        rules.append(condition.name)
+        msg = action_args.get("msg", "")
+        # The package {{ module }} is not allowed
+        # -> print(sprintf("The package %v is not allowed", input.task.module))
+        print_msg = convert_to_print(msg)
+        rules.append(print_msg)
+    return action_type, rules
+
+
+def convert_to_print(input_text):
+    pattern = r'{{\s*([^}]+)\s*}}'
+    replacement = r'%v'
+
+    result = re.sub(pattern, replacement, input_text)
+    vals = re.findall(pattern, input_text)
+    return f'print(sprintf("{result}", {vals[0]}))'
+
+
+# func to convert each condition to rego rules
 def condition_to_rule(condition: dict):
     rules = []
     if "AllCondition" in condition:
@@ -122,7 +191,8 @@ def condition_to_rule(condition: dict):
         rules.append(rule)
     return rules
 
-def convert_condition(condition):
+
+def convert_condition(condition: dict):
     print("debug: condition", condition)
     if "EqualsExpression" in condition:
         lhs = condition["EqualsExpression"]["lhs"]
@@ -139,9 +209,11 @@ def main():
     args = parser.parse_args()
 
     fpath = args.file
-    out_fpath = args.output
+    out_dir = args.output
 
-    generate_rego_from_ast(fpath, out_fpath)
+    os.makedirs(out_dir, exist_ok=True)
+
+    generate_rego_from_ast(fpath, out_dir)
 
 
 if __name__ == "__main__":
