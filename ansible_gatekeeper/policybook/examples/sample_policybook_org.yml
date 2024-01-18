@@ -5,12 +5,12 @@
   vars:
     allowed_packages:
       - mysql
-    ## Define the conditions we are looking for
-    policies:
-      - name: Check for package name
-        condition: input["ansible.bultin.package"].name not in allowed_packages  ## Define the action we should take should the condition be met
-        actions:
-          - deny:
-              msg: The package {{ input["ansible.builtin.package"].name }} is not allowed, allowed packages are one of {{ allowed_packages }}
-        tags:
-          - compliance
+  ## Define the conditions we are looking for
+  policies:
+    - name: Check for package name
+      condition: input["ansible.builtin.package"].name not in allowed_packages  ## Define the action we should take should the condition be met
+      actions:
+        - deny:
+            msg: The package {{ input["ansible.builtin.package"].name }} is not allowed, allowed packages are one of {{ allowed_packages }}
+      tags:
+        - compliance
