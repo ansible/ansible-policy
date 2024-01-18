@@ -33,14 +33,33 @@ ${func_name} = true if {
 } else = false
 """)
 
+_deny_template = string.Template(r"""
+deny = true if {
+    ${steps}
+} else = false
+""")
+
+_allow_template = string.Template(r"""
+deny = false if {
+    ${steps}
+} else = true
+""")
+
 
 @dataclass
 class RegoFunc:
     name: str = ""
     rules: list = field(default_factory=list)
+    type: str = ""
 
-    def to_rego_func(self):
+    def to_rego(self):
         template = _if_template
+        if self.type == "if":
+            template = _if_template
+        elif self.type == "deny":
+            template = _deny_template
+        elif self.type == "allow":
+            template = _allow_template
 
         _steps = join_with_separator(self.rules, separator="\n    ")
         _name = self.name
@@ -51,6 +70,7 @@ class RegoFunc:
             "steps": _steps,
         })
         return rego_block
+
 
 
 def join_with_separator(str_or_list: str | list, separator: str=", "):
@@ -89,10 +109,10 @@ class RegoPolicy:
                 content.append(f"{var_name} = {val_str}")
 
         # rules
-        rf = self.condition_func.to_rego_func()
+        rf = self.condition_func.to_rego()
         content.append(rf)
 
-        rf = self.action_func.to_rego_func()
+        rf = self.action_func.to_rego()
         content.append(rf)
             
         content_str = "\n".join(content)
@@ -144,6 +164,7 @@ def generate_rego_from_ast(input, output):
         if " " in _name:
             _name = _name.replace(" ", "_")
         r_func.name = _name 
+        r_func.type = "if"
         condition = pol.get("condition", {})
         rule = condition_to_rule(condition)
         r_func.rules = rule
@@ -153,6 +174,7 @@ def generate_rego_from_ast(input, output):
         r_func = RegoFunc()
         action_type, rule = action_to_rule(action, rego_policy.condition_func)
         r_func.name = action_type
+        r_func.type = action_type
         r_func.rules = rule
         rego_policy.action_func = r_func
         
@@ -173,10 +195,17 @@ def action_to_rule(input: dict, condition: RegoFunc):
     if action_type == "deny":
         rules.append(condition.name)
         msg = action_args.get("msg", "")
-        # The package {{ module }} is not allowed
-        # -> print(sprintf("The package %v is not allowed", input.task.module))
         print_msg = convert_to_print(msg)
         rules.append(print_msg)
+    elif action_type == "allow":
+        rules.append(condition.name)
+        msg = action_args.get("msg", "")
+        print_msg = convert_to_print(msg)
+        rules.append(print_msg)
+    # elif action_type == "info":
+    # elif action_type == "warn":
+    # elif action_type == "ignore":
+
     return action_type, rules
 
 
@@ -204,19 +233,31 @@ def condition_to_rule(condition: dict):
 
 
 def convert_condition(condition: dict):
-    print("debug: condition", condition)
     if "EqualsExpression" in condition:
         lhs = condition["EqualsExpression"]["lhs"]
         lhs_val = list(lhs.values())[0]
         rhs = condition["EqualsExpression"]["rhs"]
         rhs_val = list(rhs.values())[0]
         return f"{lhs_val} == {rhs_val}"
+    elif "NotEqualsExpression" in condition:
+        lhs = condition["NotEqualsExpression"]["lhs"]
+        lhs_val = list(lhs.values())[0]
+        rhs = condition["NotEqualsExpression"]["rhs"]
+        rhs_val = list(rhs.values())[0]
+        return f"{lhs_val} != {rhs_val}"
     elif "ItemNotInListExpression" in condition:
         lhs = condition["ItemNotInListExpression"]["lhs"]
         lhs_val = list(lhs.values())[0]
         rhs = condition["ItemNotInListExpression"]["rhs"]
         rhs_val = list(rhs.values())[0]
         return f"not {lhs_val} in {rhs_val}"
+    elif "ItemInListExpression" in condition:
+        lhs = condition["ItemInListExpression"]["lhs"]
+        lhs_val = list(lhs.values())[0]
+        rhs = condition["ItemInListExpression"]["rhs"]
+        rhs_val = list(rhs.values())[0]
+        return f"{lhs_val} in {rhs_val}"
+    
 
 
 def main():

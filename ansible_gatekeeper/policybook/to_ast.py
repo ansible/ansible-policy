@@ -14,17 +14,11 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import os
 import traceback
-
 import yaml
-
 from json_generator import generate_dict_policysets
 from policy_parser import parse_policy_sets
-
 import argparse
-
-HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def main(ansible_policy, ast_file):
