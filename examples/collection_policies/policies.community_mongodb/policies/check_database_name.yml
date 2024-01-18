@@ -12,7 +12,7 @@
     - gatekeeper.rego.rule:
         name: database
         exprs:
-          - db_name := resolve_var(input.task.module_options.database, input.task)
+          - db_name := resolve_var(input._agk.task.module_options.database, input._agk.task)
         return: db_name
       register: database
 

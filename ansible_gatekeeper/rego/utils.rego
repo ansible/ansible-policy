@@ -32,14 +32,14 @@ request_http_data_source(url) := ext_data {
 }
 
 _find_playbook_by_task(task) := playbook_key {
-    playbook := input.playbooks[_]
+    playbook := input._agk.playbooks[_]
     current_task = playbook.tasks[_]
     current_task.key == task.key
     playbook_key := playbook.key
 }
 
 _find_taskfile_by_task(task) := taskfile_key {
-    taskfile := input.taskfiles[_]
+    taskfile := input._agk.taskfiles[_]
     current_task = taskfile.tasks[_]
     current_task.key == task.key
     taskfile_key := taskfile.key
@@ -60,6 +60,6 @@ resolve_var(ref, task) := var_value {
     var_name_tmp2 := replace(var_name_tmp1, "}}", "")
     var_name := replace(var_name_tmp2, " ", "")
     entrypoint_key := _find_entrypoint_by_task(task)
-    variables := input.variables[entrypoint_key]
+    variables := input._agk.variables[entrypoint_key]
     var_value := variables[var_name]
 }

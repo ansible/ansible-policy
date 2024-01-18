@@ -6,8 +6,8 @@
     - gatekeeper.rego.rule:
         name: become_true_task
         exprs:
-          - input.task.become.enabled
-          - task_name = input.task.name
+          - input.become
+          - task_name = input._agk.task.name
         return: task_name
       register: become_true_task
 
