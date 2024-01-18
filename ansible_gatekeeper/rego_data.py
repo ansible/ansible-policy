@@ -12,7 +12,7 @@ from ansible_gatekeeper.utils import (
     get_module_name_from_task,
     load_external_data,
     prepare_project_dir_from_runner_jobdata,
-    embed_module_fqcn_with_galaxy,
+    embed_module_info_with_galaxy,
 )
 from sage_scan.pipeline import SagePipeline
 from sage_scan.models import (
@@ -500,21 +500,21 @@ def process_input_data_with_external_data(input_type: str, input_data: PolicyInp
 
     if input_type == InputTypeTask:
         task = input_data.task
-        embed_module_fqcn_with_galaxy(task=task, galaxy=galaxy)
+        embed_module_info_with_galaxy(task=task, galaxy=galaxy)
     else:
         # set `task.module_fqcn` by using galaxy FQCN list
         for filename, playbook in input_data.playbooks.items():
             for task in playbook.tasks:
-                embed_module_fqcn_with_galaxy(task=task, galaxy=galaxy)
+                embed_module_info_with_galaxy(task=task, galaxy=galaxy)
 
         for filename, taskfile in input_data.taskfiles.items():
             for task in taskfile.tasks:
-                embed_module_fqcn_with_galaxy(task=task, galaxy=galaxy)
+                embed_module_info_with_galaxy(task=task, galaxy=galaxy)
 
         for role_name, role in input_data.roles.items():
             for filename, taskfile in role.taskfiles.items():
                 for task in taskfile.tasks:
-                    embed_module_fqcn_with_galaxy(task=task, galaxy=galaxy)
+                    embed_module_info_with_galaxy(task=task, galaxy=galaxy)
 
     return input_data
 
