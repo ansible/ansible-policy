@@ -186,7 +186,9 @@ def convert_to_print(input_text):
 
     result = re.sub(pattern, replacement, input_text)
     vals = re.findall(pattern, input_text)
-    return f'print(sprintf("{result}", {vals[0]}))'
+    vals = [v.strip() for v in vals]
+    val_str = ", ".join(vals)
+    return f'print(sprintf("{result}", [{val_str}]))'
 
 
 # func to convert each condition to rego rules

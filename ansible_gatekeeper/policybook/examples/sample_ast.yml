@@ -1,26 +1,28 @@
 - PolicySet:
     hosts:
     - localhost
-    name: Check for mysql package installation
+    name: Check for using module
     policies:
     - Policy:
         actions:
         - Action:
             action: deny
             action_args:
-              msg: The package {{ input.task.module }} is not allowed, allowed packages
-                are one of {{ allowed_packages.join(", ") }}
+              msg: The package {{ input.task.module }} is not allowed, allowed modules
+                are one of {{ allowed_modules }}
         condition:
           AllCondition:
           - ItemNotInListExpression:
               lhs:
                 String: input.task.module
               rhs:
-                String: allowed_packages
+                String: allowed_modules
         enabled: true
-        name: Check for package name
+        name: Check for module name
         tags:
         - compliance
     vars:
-      allowed_packages:
+      allowed_modules:
       - mysql
+      - ansible.builtin.set_fact
+      - ansible.builtin.file

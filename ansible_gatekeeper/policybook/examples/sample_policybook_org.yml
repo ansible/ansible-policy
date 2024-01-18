@@ -1,17 +1,19 @@
 # package-example.yml
 ---
-- name: Check for mysql package installation
+- name: Check for using module
   hosts: localhost # decision environment (can be a container) 
   vars:
-    allowed_packages:
+    allowed_modules:
       - mysql
+      - ansible.builtin.set_fact
+      - ansible.builtin.file
   ## Define the conditions we are looking for
   policies:
-    - name: Check for package name
-      # condition: input["ansible.bultin.package"].name not in allowed_packages
-      condition: input.task.module not in allowed_packages ## Define the action we should take should the condition be met 
+    - name: Check for module name
+      # condition: input["ansible.builtin.package"].name not in allowed_packages
+      condition: input.task.module not in allowed_modules ## Define the action we should take should the condition be met 
       actions:
         - deny:
-            msg: The package {{ input.task.module }} is not allowed, allowed packages are one of {{ allowed_packages.join(", ") }}
+            msg: The package {{ input.task.module }} is not allowed, allowed modules are one of {{ allowed_modules }}
       tags:
         - compliance
