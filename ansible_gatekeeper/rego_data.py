@@ -27,7 +27,7 @@ from sage_scan.models import (
     PlaybookData,
     TaskFileData,
 )
-from sage_scan.process.variable_container import get_set_vars_from_data
+from sage_scan.variable_container import get_set_vars_from_data
 from sage_scan.process.utils import (
     get_tasks_in_playbook,
     get_tasks_in_taskfile,
@@ -463,14 +463,28 @@ class PolicyInput(object):
 
             return [p_input]
 
-    def to_json(self, **kwargs):
+    def to_object_json(self, **kwargs):
         kwargs["value"] = self
         kwargs["make_refs"] = False
         kwargs["separators"] = (",", ":")
         return jsonpickle.encode(**kwargs)
 
+    def to_json(self, **kwargs):
+        data = {}
+        try:
+            task_data_block = yaml.safe_load(self.task.yaml_lines)
+            if task_data_block:
+                data = task_data_block[0]
+        except Exception:
+            pass
+        data["_agk"] = self
+        kwargs["value"] = data
+        kwargs["make_refs"] = False
+        kwargs["separators"] = (",", ":")
+        return jsonpickle.encode(**kwargs)
+
     @staticmethod
-    def from_json(json_str: str = "", fpath: str = ""):
+    def from_object_json(json_str: str = "", fpath: str = ""):
         if not json_str and fpath:
             with open(fpath, "r") as file:
                 json_str = file.read()

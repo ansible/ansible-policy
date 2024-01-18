@@ -1,5 +1,3 @@
-# This is a generated file by the following command 
-#   $ ansible-playbook check_become.yml --extra-vars="filepath=./check_become_generated.rego"
 
 package check_become_policy
 
@@ -12,8 +10,8 @@ __tags__ = ["compliance"]
 
 
 become_true_task := task_name {
-    input.task.become.enabled
-    task_name = input.task.name
+    input.become
+    task_name = input._agk.task.name
 }
 
 using_become = true if {

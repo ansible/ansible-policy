@@ -1,4 +1,5 @@
 import os
+import sys
 import re
 import base64
 import json
@@ -71,6 +72,9 @@ def eval_opa_policy(rego_path: str, input_data: str, external_data_path: str, ex
     logger.debug(f"proc.input_data: {input_data}")
     logger.debug(f"proc.stdout: {proc.stdout}")
     logger.debug(f"proc.stderr: {proc.stderr}")
+    if proc.stderr:
+        print(f"{rego_pkg_name}: {proc.stderr}", file=sys.stderr)
+
     if proc.returncode != 0:
         error = f"failed to run `opa eval` command; error details:\nSTDOUT: {proc.stdout}\nSTDERR: {proc.stderr}"
         raise ValueError(error)
