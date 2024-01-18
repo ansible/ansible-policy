@@ -120,20 +120,32 @@ def get_module_name_from_task(task):
     return module_name, module_short_name
 
 
-def embed_module_fqcn_with_galaxy(task, galaxy):
-    if not galaxy:
-        return
-    if task.module and "." in task.module:
-        return
-    if task.module_fqcn and "." in task.module_fqcn:
+def embed_module_info_with_galaxy(task, galaxy):
+    if not task.module:
         return
 
-    module_fqcn = ""
+    if not galaxy:
+        return
+
     mappings = galaxy.get("module_name_mappings", {})
-    found = mappings.get(task.module, [])
-    if found and found[0] and "." in found[0]:
-        module_fqcn = found[0]
-        task.module_fqcn = module_fqcn
+
+    module_fqcn = ""
+    if "." in task.module:
+        module_fqcn = task.module
+    else:
+        found = mappings.get(task.module, [])
+        if found and found[0] and "." in found[0]:
+            module_fqcn = found[0]
+            task.module_fqcn = module_fqcn
+    if not task.module_info and module_fqcn and "." in module_fqcn:
+        collection_name = ".".join(module_fqcn.split(".")[:2])
+        short_name = ".".join(module_fqcn.split(".")[2:])
+        task.module_info = {
+            "collection": collection_name,
+            "fqcn": module_fqcn,
+            "key": "__unknown__",
+            "short_name": short_name,
+        }
     return
 
 
