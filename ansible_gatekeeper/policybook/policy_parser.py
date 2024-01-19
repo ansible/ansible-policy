@@ -93,14 +93,12 @@ def parse_condition(condition: Any) -> pm.Condition:
     elif isinstance(condition, bool):
         return pm.Condition("all", [parse_condition_value(str(condition))])
     elif isinstance(condition, dict):
-        timeout = condition.pop("timeout", None)
         keys = list(condition.keys())
         if len(condition) == 1 and keys[0] in ["any", "all", "not_all"]:
             when = keys[0]
             return pm.Condition(
                 when,
                 [parse_condition_value(str(c)) for c in condition[when]],
-                timeout,
             )
         else:
             raise Exception(

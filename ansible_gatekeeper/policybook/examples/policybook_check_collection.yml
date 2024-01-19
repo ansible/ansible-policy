@@ -1,0 +1,16 @@
+# package-example.yml
+---
+- name: Check for using collection
+  hosts: localhost
+  vars:
+    allowed_collections:
+      - ansible.builtin
+      - amazon.aws
+  policies:
+    - name: Check for collection name
+      condition: input._agk.task.module_info.collection not in allowed_collections
+      actions:
+        - deny:
+            msg: The collection {{ input._agk.task.module_info.collection }} is not allowed, allowed collection are one of {{ allowed_collections }}
+      tags:
+        - compliance
