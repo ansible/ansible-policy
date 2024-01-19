@@ -14,35 +14,21 @@ from ansible_gatekeeper.utils import (
     prepare_project_dir_from_runner_jobdata,
     embed_module_info_with_galaxy,
 )
-from sage_scan.pipeline import SagePipeline
-from sage_scan.models import (
+
+from ansible_scan_core.scanner import AnsibleScanner
+from ansible_scan_core.models import (
     BecomeInfo,
-    File as SageFile,
-    Task as SageTask,
-    TaskFile as SageTaskFile,
-    Role as SageRole,
-    Project as SageObjProject,
-    Playbook as SagePlaybook,
-    SageProject,
-    PlaybookData,
-    TaskFileData,
-)
-from sage_scan.variable_container import get_set_vars_from_data
-from sage_scan.process.utils import (
-    get_tasks_in_playbook,
-    get_tasks_in_taskfile,
-    get_taskfiles_in_role,
-    list_entrypoints,
+    File as CoreFile,
+    Task as CoreTask,
+    TaskFile as CoreTaskFile,
+    Role as CoreRole,
+    Playbook as CorePlaybook,
+    ScanResult,
+    VariableContainer,
 )
 
 
-sage_pipeline = SagePipeline(silent=True)
-
-
-_util_rego_path = os.path.join(os.path.dirname(__file__), "rego/utils.rego")
-_util_rego = ""
-with open(_util_rego_path, "r") as util_rego_file:
-    _util_rego = util_rego_file.read()
+scanner = AnsibleScanner(silent=True)
 
 
 InputTypeTask = "task"
@@ -74,42 +60,14 @@ class RuntimeData(object):
         return data
 
 
-def get_all_set_vars(project: SageProject, common_vars: dict = None):
-    entrypoints = list_entrypoints(project=project)
-    entry_and_objs = []
+def get_all_set_vars(project: ScanResult, common_vars: dict = None):
     variables = {}
-    for entry in entrypoints:
-        if isinstance(entry, SageRole):
-            taskfiles = get_taskfiles_in_role(role=entry, project=project)
-            for tf in taskfiles:
-                entry_and_objs.append((entry, tf))
-        else:
-            entry_and_objs.append((entry, entry))
-
-    object_data_list = []
-    for (entrypoint, object) in entry_and_objs:
-        if isinstance(object, SagePlaybook):
-            playbook_data = PlaybookData(object=object, project=project)
-            object_data_list.append(playbook_data)
-        elif isinstance(object, SageTaskFile):
-            taskfile_data = None
-            if isinstance(entrypoint, SageRole):
-                taskfile_data = TaskFileData(object=object, project=project, role=entrypoint)
-            else:
-                taskfile_data = TaskFileData(object=object, project=project)
-            object_data_list.append(taskfile_data)
-    for object_data in object_data_list:
-        # variable_container function
-        set_vars, role_vars = get_set_vars_from_data(pd=object_data)
-        _all_vars = {}
-        if role_vars:
-            _all_vars.update(role_vars)
-        if set_vars:
-            _all_vars.update(set_vars)
-        if common_vars:
-            _all_vars.update(common_vars)
-        entry_key = object_data.object.key
-        variables.update({entry_key: _all_vars})
+    for tree in project.trees:
+        entrypoint = tree.items[0].spec
+        entrypoint_key = entrypoint.key
+        all_vars_per_tree = VariableContainer.find_all_set_vars(tree)
+        all_vars_per_tree.update(common_vars)
+        variables[entrypoint_key] = all_vars_per_tree
     return variables
 
 
@@ -146,13 +104,13 @@ def scan_project(
 
     project = None
     if yaml_str:
-        project = sage_pipeline.run(
+        project = scanner.run(
             raw_yaml=yaml_str,
             source=_metadata,
             output_dir=output_dir,
         )
     elif project_dir:
-        project = sage_pipeline.run(
+        project = scanner.run(
             target_dir=project_dir,
             source=_metadata,
             output_dir=output_dir,
@@ -162,9 +120,9 @@ def scan_project(
         raise ValueError("failed to scan the target project; project is None")
 
     if input_type == InputTypeProject:
-        policy_input = PolicyInput.from_sage_project(project=project, runtime_data=runtime_data)
+        policy_input = PolicyInput.from_scan_result(project=project, runtime_data=runtime_data)
     elif input_type == InputTypeTask:
-        policy_input = PolicyInput.from_sage_project(project=project, runtime_data=runtime_data, input_type=InputTypeTask)
+        policy_input = PolicyInput.from_scan_result(project=project, runtime_data=runtime_data, input_type=InputTypeTask)
 
     if not policy_input:
         raise ValueError("failed to scan the target project; policy_input is None")
@@ -191,8 +149,8 @@ class File(object):
     data: dict = field(default_factory=dict)
 
     @classmethod
-    def from_sage_object(cls, obj: SageFile):
-        new_obj = Task()
+    def from_object(cls, obj: CoreFile):
+        new_obj = cls()
         if hasattr(obj, "__dict__"):
             for k, v in obj.__dict__.items():
                 if hasattr(new_obj, k):
@@ -245,8 +203,8 @@ class Task(object):
     module_fqcn: str = ""
 
     @classmethod
-    def from_sage_object(cls, obj: SageTask, proj: SageProject):
-        new_obj = Task()
+    def from_object(cls, obj: CoreTask, proj: ScanResult):
+        new_obj = cls()
         if hasattr(obj, "__dict__"):
             for k, v in obj.__dict__.items():
                 if hasattr(new_obj, k):
@@ -274,15 +232,15 @@ class Playbook(object):
     tasks: List[Task] = field(default_factory=list)
 
     @classmethod
-    def from_sage_object(cls, obj: SagePlaybook, proj: SageProject):
-        new_obj = Playbook()
+    def from_object(cls, obj: CorePlaybook, proj: ScanResult):
+        new_obj = cls()
         if hasattr(obj, "__dict__"):
             for k, v in obj.__dict__.items():
                 if hasattr(new_obj, k):
                     setattr(new_obj, k, v)
 
-        tasks = get_tasks_in_playbook(playbook=obj, project=proj)
-        new_obj.tasks = [Task.from_sage_object(task, proj) for task in tasks]
+        tasks = proj.get_tasks_in_playbook(playbook=obj)
+        new_obj.tasks = [Task.from_object(task, proj) for task in tasks]
 
         return new_obj
 
@@ -305,15 +263,15 @@ class TaskFile(object):
     tasks: List[Task] = field(default_factory=list)
 
     @classmethod
-    def from_sage_object(cls, obj: SageTaskFile, proj: SageProject):
-        new_obj = TaskFile()
+    def from_object(cls, obj: CoreTaskFile, proj: ScanResult):
+        new_obj = cls()
         if hasattr(obj, "__dict__"):
             for k, v in obj.__dict__.items():
                 if hasattr(new_obj, k):
                     setattr(new_obj, k, v)
 
-        tasks = get_tasks_in_taskfile(taskfile=obj, project=proj)
-        new_obj.tasks = [Task.from_sage_object(task, proj) for task in tasks]
+        tasks = proj.get_tasks_in_taskfile(taskfile=obj)
+        new_obj.tasks = [Task.from_object(task, proj) for task in tasks]
 
         return new_obj
 
@@ -345,15 +303,15 @@ class Role(object):
     taskfiles: Dict[str, TaskFile] = field(default_factory=dict)
 
     @classmethod
-    def from_sage_object(cls, obj: SageRole, proj: SageProject):
+    def from_object(cls, obj: CoreRole, proj: ScanResult):
         new_obj = Role()
         if hasattr(obj, "__dict__"):
             for k, v in obj.__dict__.items():
                 if hasattr(new_obj, k):
                     setattr(new_obj, k, v)
 
-        sage_taskfiles = get_taskfiles_in_role(role=obj, project=proj)
-        new_obj.taskfiles = {sage_taskfile.filepath: TaskFile.from_sage_object(obj=sage_taskfile, proj=proj) for sage_taskfile in sage_taskfiles}
+        taskfiles = proj.get_taskfiles_in_role(role=obj)
+        new_obj.taskfiles = {taskfile.filepath: TaskFile.from_object(obj=taskfile, proj=proj) for taskfile in taskfiles}
 
         return new_obj
 
@@ -384,8 +342,8 @@ class Project(object):
     version: str = ""
 
     @classmethod
-    def from_sage_object(cls, obj: SageObjProject):
-        new_obj = Role()
+    def from_object(cls, obj: ScanResult):
+        new_obj = cls()
         if hasattr(obj, "__dict__"):
             for k, v in obj.__dict__.items():
                 if hasattr(new_obj, k):
@@ -415,9 +373,9 @@ class PolicyInput(object):
     # others?
 
     @staticmethod
-    def from_sage_project(project: SageProject, runtime_data: RuntimeData = None, input_type: str = ""):
+    def from_scan_result(project: ScanResult, runtime_data: RuntimeData = None, input_type: str = ""):
         if input_type == InputTypeTask:
-            base_input_list = PolicyInput.from_sage_project(project=project, runtime_data=runtime_data)
+            base_input_list = PolicyInput.from_scan_result(project=project, runtime_data=runtime_data)
             base_input = base_input_list[0]
             tasks = []
             for playbook in base_input.playbooks.values():
@@ -436,15 +394,15 @@ class PolicyInput(object):
         else:
             p_input = PolicyInput()
             p_input.source = project.source
-            p_input.playbooks = {playbook.filepath: Playbook.from_sage_object(obj=playbook, proj=project) for playbook in project.playbooks}
-            p_input.taskfiles = {taskfile.filepath: TaskFile.from_sage_object(obj=taskfile, proj=project) for taskfile in project.taskfiles}
-            p_input.roles = {role.filepath: Role.from_sage_object(obj=role, proj=project) for role in project.roles}
+            p_input.playbooks = {playbook.filepath: Playbook.from_object(obj=playbook, proj=project) for playbook in project.playbooks}
+            p_input.taskfiles = {taskfile.filepath: TaskFile.from_object(obj=taskfile, proj=project) for taskfile in project.taskfiles}
+            p_input.roles = {role.filepath: Role.from_object(obj=role, proj=project) for role in project.roles}
             if project.projects:
                 p_input.project = project.projects[0]
 
             files = {}
             for file in project.files:
-                files[file.filepath] = File.from_sage_object(obj=file)
+                files[file.filepath] = File.from_object(obj=file)
             p_input.vars_files = files
 
             if runtime_data:

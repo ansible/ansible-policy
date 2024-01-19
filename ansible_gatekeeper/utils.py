@@ -106,9 +106,9 @@ def get_module_name_from_task(task):
         module_name = task.module_info.get("fqcn", "")
     if task.annotations:
         if not module_name:
-            module_name = task.annotations.get("module.correct_fqcn", "")
+            module_name = task.get_annotation("module.correct_fqcn", "")
         if not module_name:
-            module_name = task.annotations.get("correct_fqcn", "")
+            module_name = task.get_annotation("correct_fqcn", "")
 
     if not module_name:
         module_name = task.module

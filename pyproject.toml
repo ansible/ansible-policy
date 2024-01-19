@@ -13,14 +13,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 dependencies = [
-    "sage-scan@git+https://github.com/IBM/sage",
-
-    # install sage-proecss manually
-    # "sage-process@git+https://github.ibm.com/ansible-risk-insight/sage-process",
-
-    # install pb-refine manually
-    # "pb-refine@git+https://github.ibm.com/ansible-risk-insight/pb-refine",
-
+    "ansible-scan-core@git+https://github.com/ansible/ansible-scan-core",
 ]
 
 dynamic = ["version"]
