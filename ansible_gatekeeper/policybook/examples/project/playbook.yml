@@ -1,0 +1,55 @@
+---
+- name: Provision EC2 instance and set up MySQL
+  hosts: localhost
+  gather_facts: false
+  vars:
+    region: "your_aws_region"
+    instance_type: "t2.micro"
+    ami_id: "your_ami_id"
+    key_name: "your_key_name"
+    security_group: "your_security_group_id"
+    subnet_id: "your_subnet_id"
+    mysql_root_password: "your_mysql_root_password"
+
+  tasks:
+    - name: Create EC2 instance
+      amazon.aws.ec2_instance:
+        region: "{{ region }}"
+        key_name: "{{ key_name }}"
+        instance_type: "{{ instance_type }}"
+        image_id: "{{ ami_id }}"
+        security_group: "{{ security_group }}"
+        subnet_id: "{{ subnet_id }}"
+        assign_public_ip: true
+        wait: yes
+        count: 1
+        instance_tags:
+          Name: "MySQLInstance"
+      register: ec2
+
+    - name: Wait for SSH to become available
+      wait_for:
+        host: "{{ item.public_ip }}"
+        port: 22
+        delay: 10
+        timeout: 300
+        state: started
+      with_items: "{{ ec2.instances }}"
+
+    - name: Install nginx [installing unauthorized pkg]
+      ansible.builtin.package:
+        name: "nginx"
+        state: present
+
+    - name: Install MySQL server
+      ansible.builtin.package:
+        name: "mysql-server"
+        state: present
+
+    - name: Set MySQL root password [using unauthorized collection]
+      community.mysql.mysql_user:
+        name: root
+        password: "{{ mysql_root_password }}"
+        host: "{{ item }}"
+        login_unix_socket: yes
+      with_items: ["localhost", "127.0.0.1", "::1"]

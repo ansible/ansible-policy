@@ -9,7 +9,7 @@ import data.ansible_gatekeeper.resolve_var
 __tags__ = ["compliance"]
 
 
-allowed_packages = ["mysql"]
+allowed_packages = ["mysql-server"]
 
 Check_for_package_name_0 = true if {
     lhs_list = to_list(input["ansible.builtin.package"].name)

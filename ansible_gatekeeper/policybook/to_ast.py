@@ -19,6 +19,7 @@ import yaml
 from json_generator import generate_dict_policysets
 from policy_parser import parse_policy_sets
 import argparse
+import os
 
 
 def main(ansible_policy, ast_file):
@@ -28,7 +29,7 @@ def main(ansible_policy, ast_file):
             policyset = generate_dict_policysets(
                 parse_policy_sets(data)
             )
-
+        os.makedirs(os.path.dirname(ast_file), exist_ok=True)
         with open(ast_file, "w") as f:
             f.write(yaml.dump(policyset))
     except Exception:

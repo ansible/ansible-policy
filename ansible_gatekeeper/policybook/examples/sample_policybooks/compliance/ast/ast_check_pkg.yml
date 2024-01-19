@@ -23,4 +23,4 @@
         - compliance
     vars:
       allowed_packages:
-      - mysql
+      - mysql-server

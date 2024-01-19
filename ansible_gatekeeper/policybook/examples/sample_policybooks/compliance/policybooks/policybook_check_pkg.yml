@@ -4,7 +4,7 @@
   hosts: localhost  # decision environment (can be a container)
   vars:
     allowed_packages:
-      - mysql
+      - "mysql-server"
   ## Define the conditions we are looking for
   policies:
     - name: Check for package name
