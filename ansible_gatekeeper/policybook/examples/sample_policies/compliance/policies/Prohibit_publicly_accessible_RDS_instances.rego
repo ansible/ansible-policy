@@ -12,7 +12,7 @@ __tags__ = ["compliance"]
 
 Prohibit_publicly_accessible_RDS_instances_0 = true if {
     input["amazon.aws.rds_instance"].publicly_accessible
-} else = false
+}
 
 
 deny = true if {

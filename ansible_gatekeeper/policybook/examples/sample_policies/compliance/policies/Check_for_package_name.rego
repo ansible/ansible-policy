@@ -11,10 +11,11 @@ __tags__ = ["compliance"]
 
 allowed_packages = ["mysql-server"]
 
-Check_for_package_name_0 = true if {
-    lhs_list = to_list(input["ansible.builtin.package"].name)
-    check_item_not_in_list(lhs_list, allowed_packages)
+check_item_not_in_list(lhs_list, rhs_list) = true if {
+	array := [item | item := lhs_list[_]; not item in rhs_list]
+    count(array) > 0
 } else = false
+
 
 to_list(val) = output if {
     is_array(val)
@@ -25,11 +26,12 @@ to_list(val) = output if {
     not is_array(val)
     output = [val]
 }
-                                        
-check_item_not_in_list(lhs_list, rhs_list) = true if {
-	array := [item | item := lhs_list[_]; not item in rhs_list]
-    count(array) > 0
-} else = false
+
+
+Check_for_package_name_0 = true if {
+    lhs_list = to_list(input["ansible.builtin.package"].name)
+    check_item_not_in_list(lhs_list, allowed_packages)
+}
 
 
 deny = true if {

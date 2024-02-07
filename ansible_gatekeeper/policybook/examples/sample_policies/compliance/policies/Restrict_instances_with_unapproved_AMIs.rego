@@ -31,7 +31,7 @@ to_list(val) = output if {
 Restrict_instances_with_unapproved_AMIs_0 = true if {
     lhs_list = to_list(input["amazon.aws.rds_instance"].image_id)
     check_item_not_in_list(lhs_list, allowed_image_ids)
-} else = false
+}
 
 
 deny = true if {

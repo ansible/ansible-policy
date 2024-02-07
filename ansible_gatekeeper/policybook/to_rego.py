@@ -44,14 +44,14 @@ allow = true if {
 _if_template = string.Template(r"""
 ${func_name} = true if {
     ${steps}
-} else = false
+}
 """)
 
 _item_not_in_list_template = string.Template(r"""
 ${func_name} = true if {
     lhs_list = to_list(${lhs})
     check_item_not_in_list(lhs_list, ${rhs})
-} else = false
+}
 """)
 
 
@@ -59,7 +59,7 @@ _item_in_list_template = string.Template(r"""
 ${func_name} = true if {
     lhs_list = to_list(${lhs})
     check_item_in_list(lhs_list, ${rhs})
-} else = false             
+}            
 """)
 
 _check_item_not_in_list = """
@@ -246,7 +246,7 @@ def condition_to_rule(condition: dict, policy_name: str):
         for _f in _funcs:
             used_util_funcs.extend(_f.called_util_funcs)
     elif "AnyCondition" in condition:
-        _funcs = [convert_condition_func(cond, policy_name, i) for i, cond in enumerate(condition["AnyCondition"])]
+        _funcs = [convert_condition_func(cond, policy_name) for i, cond in enumerate(condition["AnyCondition"])]
         funcs.extend(_funcs)  
         for _f in _funcs:
             used_util_funcs.extend(_f.called_util_funcs)
@@ -256,7 +256,7 @@ def condition_to_rule(condition: dict, policy_name: str):
 
 
 # TODO: support all operations
-def convert_condition_func(condition: dict, policy_name: str, index: int):
+def convert_condition_func(condition: dict, policy_name: str, index: int = 0):
     rf = RegoFunc()
     func_name = f"{policy_name}_{index}"
     if " " in func_name:
