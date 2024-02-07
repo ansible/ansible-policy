@@ -32,24 +32,22 @@ to_list(val) = output if {
 Check_for_insecure_file_permission_0 = true if {
     lhs_list = to_list(input["ansible.builtin.file"].mode)
     check_item_in_list(lhs_list, insecure_file_permission)
-}            
+}
 
 
 Check_for_insecure_file_permission_0 = true if {
     lhs_list = to_list(input["ansible.builtin.copy"].mode)
     check_item_in_list(lhs_list, insecure_file_permission)
-}            
+}
 
 
 Check_for_insecure_file_permission_0 = true if {
     lhs_list = to_list(input["ansible.builtin.template"].mode)
     check_item_in_list(lhs_list, insecure_file_permission)
-}            
+}
 
 
 deny = true if {
-    Check_for_insecure_file_permission_0
-    Check_for_insecure_file_permission_0
     Check_for_insecure_file_permission_0
     print(sprintf("file permission is insecure, recommended permissions are %v.", [recommended_permissions]))
 } else = false

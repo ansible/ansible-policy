@@ -1,0 +1,23 @@
+- PolicySet:
+    hosts:
+    - localhost
+    name: Prohibit EC2 instances without a VPC
+    policies:
+    - Policy:
+        actions:
+        - Action:
+            action: deny
+            action_args:
+              msg: creating EC2 instances without a VPC is prohibited. specify vpc_subnet_id.
+        condition:
+          AllCondition:
+          - ListNotContainsItemExpression:
+              lhs:
+                String: input["amazon.aws.ec2_instance"]
+              rhs:
+                String: vpc_subnet_id
+        enabled: true
+        name: Prohibit EC2 instances without a VPC
+        tags:
+        - compliance
+    vars: {}

@@ -1,0 +1,30 @@
+# package-example.yml
+---
+- name: Check for privilage escalation
+  hosts: localhost 
+  vars:
+    allowed_users:
+      - "user_1"
+  policies:
+    - name: Check for user name in task
+      target: task
+      condition: 
+        any:
+        - input.become == yes and input.become_user not in allowed_users
+        - input.become == yes and become_user not in input
+      actions:
+        - deny:
+            msg: privilage escalation is detected. allowed users are one of {{ allowed_users }}
+      tags:
+        - compliance
+    - name: Check for user name in play
+      target: play
+      condition: 
+        any:
+        - input.become == yes and input.become_user not in allowed_users
+        - input.become == yes and become_user not in input
+      actions:
+        - deny:
+            msg: privilage escalation is detected. allowed users are one of {{ allowed_users }}
+      tags:
+        - compliance

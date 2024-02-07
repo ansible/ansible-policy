@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import re
+import glob
 
 
 OPERATOR_MNEMONIC = {
@@ -47,21 +48,14 @@ ${func_name} = true if {
 }
 """)
 
-_item_not_in_list_template = string.Template(r"""
-${func_name} = true if {
-    lhs_list = to_list(${lhs})
-    check_item_not_in_list(lhs_list, ${rhs})
-}
-""")
+# rego operation templates
+_item_not_in_list_template = string.Template(r"""lhs_list = to_list(${lhs})
+    check_item_not_in_list(lhs_list, ${rhs})""")
 
+_item_in_list_template = string.Template(r"""lhs_list = to_list(${lhs})
+    check_item_in_list(lhs_list, ${rhs})""")
 
-_item_in_list_template = string.Template(r"""
-${func_name} = true if {
-    lhs_list = to_list(${lhs})
-    check_item_in_list(lhs_list, ${rhs})
-}            
-""")
-
+# rego util funcs
 _check_item_not_in_list = """
 check_item_not_in_list(lhs_list, rhs_list) = true if {
 	array := [item | item := lhs_list[_]; not item in rhs_list]
@@ -163,7 +157,7 @@ def generate_rego_from_ast(input, output):
         # package
         _package = pol["name"]
         if " " in pol["name"]:
-            _package = pol["name"].replace(" ", "_")
+            _package = pol["name"].replace(" ", "_").replace("-", "_")
         rego_policy.package = _package
         # import statements
         rego_policy.import_statements = [
@@ -204,7 +198,8 @@ def action_to_rule(input: dict, conditions: list):
     action_args = action.get("action_args", "")
     if action_type == "deny":
         for cond in conditions:
-            rules.append(cond.name)
+            if cond.name not in rules:
+                rules.append(cond.name)
         msg = action_args.get("msg", "")
         print_msg = convert_to_print(msg)
         rules.append(print_msg)
@@ -212,7 +207,8 @@ def action_to_rule(input: dict, conditions: list):
         return make_func_from_cond("deny", template, rules)
     elif action_type == "allow":
         for cond in conditions:
-            rules.append(cond.name)
+            if cond.name not in rules:
+                rules.append(cond.name)
         msg = action_args.get("msg", "")
         print_msg = convert_to_print(msg)
         rules.append(print_msg)
@@ -231,9 +227,12 @@ def convert_to_print(input_text):
 
     result = re.sub(pattern, replacement, input_text)
     vals = re.findall(pattern, input_text)
-    vals = [v.strip() for v in vals]
-    val_str = ", ".join(vals)
-    return f'print(sprintf("{result}", [{val_str}]))'
+    if len(vals) != 0:
+        vals = [v.strip() for v in vals]
+        val_str = ", ".join(vals)
+        return f'print(sprintf("{result}", [{val_str}]))'
+    else:
+        return f'print("{input_text}")'
 
 
 # func to convert each condition to rego rules
@@ -260,53 +259,82 @@ def convert_condition_func(condition: dict, policy_name: str, index: int = 0):
     rf = RegoFunc()
     func_name = f"{policy_name}_{index}"
     if " " in func_name:
-        func_name = func_name.replace(" ", "_") 
+        func_name = func_name.replace(" ", "_").replace("-", "_")
     rf.name = func_name
-    if "EqualsExpression" in condition:
-        lhs = condition["EqualsExpression"]["lhs"]
-        lhs_val = list(lhs.values())[0]
-        rhs = condition["EqualsExpression"]["rhs"]
-        for type, val in rhs.items():
-            if type == "String":
-                rhs_val = val
-                conditions = [f'{lhs_val} == "{rhs_val}"']
-            elif type == "Boolean":
-                conditions = [f"{lhs_val}"]
+    if "AndExpression" in condition:
+        rego_expressions = []
+        util_funcs = []
+        lhs = condition["AndExpression"]["lhs"]
+        if has_expression(lhs):
+            _exp, _utils = transpile_expression(lhs)
+            rego_expressions.extend(_exp)
+            util_funcs.extend(_utils)
+        rhs = condition["AndExpression"]["rhs"]
+        if has_expression(rhs):
+            _exp, _utils = transpile_expression(rhs)
+            rego_expressions.extend(_exp)
+            util_funcs.extend(_utils)
         template = _if_template
-        rf.body = make_func_from_cond(func_name, template, conditions)
-    elif "NotEqualsExpression" in condition:
-        lhs = condition["NotEqualsExpression"]["lhs"]
-        lhs_val = list(lhs.values())[0]
-        rhs = condition["NotEqualsExpression"]["rhs"]
-        for type, val in rhs.items():
-            if type == "String":
-                rhs_val = val
-                conditions = [f'{lhs_val} != "{rhs_val}"']
-            elif type == "Boolean":
-                rhs_val = val
-                conditions = [f"not {lhs_val}"]
+        rf.called_util_funcs = util_funcs
+        rf.body = make_func_from_cond(func_name, template, rego_expressions)
+    else:
+        rego_expressions, util_funcs = transpile_expression(condition)
         template = _if_template
-        template = _if_template
-        rf.body = make_func_from_cond(func_name, template, conditions)
-    elif "ItemNotInListExpression" in condition:
-        lhs = condition["ItemNotInListExpression"]["lhs"]
-        lhs_val = list(lhs.values())[0]
-        rhs = condition["ItemNotInListExpression"]["rhs"]
-        rhs_val = list(rhs.values())[0]
-        template = _item_not_in_list_template
-        rf.called_util_funcs = [_to_list_func, _check_item_not_in_list]
-        rf.body = make_func_from_val(func_name, template, lhs=lhs_val, rhs=rhs_val)
-    elif "ItemInListExpression" in condition:
-        lhs = condition["ItemInListExpression"]["lhs"]
-        lhs_val = list(lhs.values())[0]
-        rhs = condition["ItemInListExpression"]["rhs"]
-        rhs_val = list(rhs.values())[0]
-        conditions = [lhs_val, rhs_val]
-        template = _item_in_list_template
-        rf.called_util_funcs = [_to_list_func, _check_item_in_list]
-        rf.body = make_func_from_val(func_name, template, lhs=lhs_val, rhs=rhs_val)
+        rf.called_util_funcs = util_funcs
+        rf.body = make_func_from_cond(func_name, template, rego_expressions)
     return rf
 
+
+def transpile_expression(ast_exp):
+    rego_expressions = []
+    util_funcs = []
+    if "EqualsExpression" in ast_exp:
+        lhs = ast_exp["EqualsExpression"]["lhs"]
+        lhs_val = list(lhs.values())[0]
+        rhs = ast_exp["EqualsExpression"]["rhs"]
+        for type, val in rhs.items():
+            if type == "String":
+                rhs_val = val
+                rego_expressions.append(f'{lhs_val} == {rhs_val}')
+            elif type == "Boolean":
+                rego_expressions.append(f"{lhs_val}")
+    elif "NotEqualsExpression" in ast_exp:
+        lhs = ast_exp["NotEqualsExpression"]["lhs"]
+        lhs_val = list(lhs.values())[0]
+        rhs = ast_exp["NotEqualsExpression"]["rhs"]
+        for type, val in rhs.items():
+            if type == "String":
+                rhs_val = val
+                rego_expressions.append(f'{lhs_val} != {rhs_val}')
+            elif type == "Boolean":
+                rhs_val = val
+                rego_expressions.append(f"not {lhs_val}")
+    elif "ItemNotInListExpression" in ast_exp:
+        lhs = ast_exp["ItemNotInListExpression"]["lhs"]
+        lhs_val = list(lhs.values())[0]
+        rhs = ast_exp["ItemNotInListExpression"]["rhs"]
+        rhs_val = list(rhs.values())[0]
+        template = _item_not_in_list_template
+        util_funcs = [_to_list_func, _check_item_not_in_list]
+        rego_expressions.append(make_expression_from_val(template, lhs=lhs_val, rhs=rhs_val))
+    elif "ItemInListExpression" in ast_exp:
+        lhs = ast_exp["ItemInListExpression"]["lhs"]
+        lhs_val = list(lhs.values())[0]
+        rhs = ast_exp["ItemInListExpression"]["rhs"]
+        rhs_val = list(rhs.values())[0]
+        template = _item_in_list_template
+        util_funcs = [_to_list_func, _check_item_in_list]
+        rego_expressions.append(make_expression_from_val(template, lhs=lhs_val, rhs=rhs_val))
+    return rego_expressions, util_funcs
+
+
+def has_expression(data):
+    keys = data.keys()
+    expressions = OPERATOR_MNEMONIC.values()
+    for key in keys:
+        if key in expressions:
+            return True
+    return False
 
 def make_func_from_cond(name, template, conditions):
     _steps = join_with_separator(conditions, separator="\n    ")
@@ -316,12 +344,8 @@ def make_func_from_cond(name, template, conditions):
     })
     return rego_block
 
-def make_func_from_val(name, template, lhs, rhs):
-    _name = name
-    if " " in name:
-        _name = name.replace(" ", "_") 
+def make_expression_from_val(template, lhs, rhs):
     rego_block = template.safe_substitute({
-        "func_name": _name,
         "lhs": lhs,
         "rhs": rhs
     })
@@ -340,15 +364,24 @@ def join_with_separator(str_or_list: str | list, separator: str=", "):
 def main():
     parser = argparse.ArgumentParser(description="TODO")
     parser.add_argument("-f", "--file", help='')
+    parser.add_argument("-d", "--dir", help='')
     parser.add_argument("-o", "--output", help='')
     args = parser.parse_args()
 
     fpath = args.file
+    ast_dir = args.dir
     out_dir = args.output
 
     os.makedirs(out_dir, exist_ok=True)
 
-    generate_rego_from_ast(fpath, out_dir)
+    if fpath:
+        generate_rego_from_ast(fpath, out_dir)
+    elif ast_dir:
+        path = f"{ast_dir}/*.yml"
+        policy_list = glob.glob(path)
+        for p in policy_list:
+            generate_rego_from_ast(p, out_dir)
+
 
 
 if __name__ == "__main__":

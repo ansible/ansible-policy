@@ -1,0 +1,12 @@
+# package-example.yml
+---
+- name: Check for file permission
+  hosts: localhost 
+  policies:
+    - name: Check for file change
+      condition: input["ansible.builtin.file"].mode != "444"
+      actions:
+        - deny:
+            msg: The file permission {{ input["ansible.builtin.file"].mode }} is not allowed
+      tags:
+        - compliance

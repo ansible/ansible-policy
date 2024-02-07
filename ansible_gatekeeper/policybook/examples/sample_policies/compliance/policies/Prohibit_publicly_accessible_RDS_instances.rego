@@ -17,5 +17,5 @@ Prohibit_publicly_accessible_RDS_instances_0 = true if {
 
 deny = true if {
     Prohibit_publicly_accessible_RDS_instances_0
-    print(sprintf("it is not allowed to create publicly accessible RDS instances", []))
+    print("it is not allowed to create publicly accessible RDS instances")
 } else = false

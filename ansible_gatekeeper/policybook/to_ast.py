@@ -20,6 +20,7 @@ from json_generator import generate_dict_policysets
 from policy_parser import parse_policy_sets
 import argparse
 import os
+import glob
 
 
 def main(ansible_policy, ast_file):
@@ -41,9 +42,18 @@ def main(ansible_policy, ast_file):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="TODO")
     parser.add_argument("-f", "--file", help='')
+    parser.add_argument("-d", "--dir", help='')
     parser.add_argument("-o", "--output", help='')
     args = parser.parse_args()
 
     ansible_policy = args.file
-    ast_file = args.output
-    main(ansible_policy, ast_file)
+    ansible_policy_dir = args.dir 
+    output = args.output
+    if ansible_policy:
+        main(ansible_policy, output)
+    elif ansible_policy_dir:
+        path = f"{ansible_policy_dir}/*.yml"
+        policy_list = glob.glob(path)
+        for p in policy_list:
+            out_file = f"{output}/{os.path.basename(p)}"
+            main(p, out_file)
