@@ -1,0 +1,23 @@
+- PolicySet:
+    hosts:
+    - localhost
+    name: Prohibit publicly accessible RDS instances
+    policies:
+    - Policy:
+        actions:
+        - Action:
+            action: deny
+            action_args:
+              msg: it is not allowed to create publicly accessible RDS instances
+        condition:
+          AnyCondition:
+          - EqualsExpression:
+              lhs:
+                String: input["amazon.aws.rds_instance"].publicly_accessible
+              rhs:
+                Boolean: true
+        enabled: true
+        name: Prohibit publicly accessible RDS instances
+        tags:
+        - compliance
+    vars: {}

@@ -1,0 +1,17 @@
+# package-example.yml
+---
+- name: Check for ec2_instance type
+  hosts: localhost 
+  vars:
+    allowed_instance_types:
+      - t2.micro
+      - t3.micro
+      - t3a.micro
+  policies:
+    - name: Check for ec2_instance type
+      condition: input["amazon.aws.ec2_instance"].instance_type not in allowed_instance_types
+      actions:
+        - deny:
+            msg: The instance type {{ input["amazon.aws.ec2_instance"].instance_type }} is not allowed, allowed instance types are one of {{ allowed_instance_types }}
+      tags:
+        - compliance

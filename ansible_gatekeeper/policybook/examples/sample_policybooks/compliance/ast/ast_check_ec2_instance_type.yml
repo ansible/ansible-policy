@@ -1,0 +1,29 @@
+- PolicySet:
+    hosts:
+    - localhost
+    name: Check for ec2_instance type
+    policies:
+    - Policy:
+        actions:
+        - Action:
+            action: deny
+            action_args:
+              msg: The instance type {{ input["amazon.aws.ec2_instance"].instance_type
+                }} is not allowed, allowed instance types are one of {{ allowed_instance_types
+                }}
+        condition:
+          AllCondition:
+          - ItemNotInListExpression:
+              lhs:
+                String: input["amazon.aws.ec2_instance"].instance_type
+              rhs:
+                String: allowed_instance_types
+        enabled: true
+        name: Check for ec2_instance type
+        tags:
+        - compliance
+    vars:
+      allowed_instance_types:
+      - t2.micro
+      - t3.micro
+      - t3a.micro

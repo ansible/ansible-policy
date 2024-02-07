@@ -27,13 +27,7 @@ OPERATOR_MNEMONIC = {
 }
 
 
-# rego templates
-_if_template = string.Template(r"""
-${func_name} = true if {
-    ${steps}
-} else = false
-""")
-
+# rego action templates
 _deny_template = string.Template(r"""
 deny = true if {
     ${steps}
@@ -41,17 +35,48 @@ deny = true if {
 """)
 
 _allow_template = string.Template(r"""
-deny = false if {
+allow = true if {
     ${steps}
-} else = true
+} else = false
 """)
 
-_item_not_in_template = string.Template(r"""
+# rego condition templates
+_if_template = string.Template(r"""
+${func_name} = true if {
+    ${steps}
+} else = false
+""")
+
+_item_not_in_list_template = string.Template(r"""
 ${func_name} = true if {
     lhs_list = to_list(${lhs})
     check_item_not_in_list(lhs_list, ${rhs})
 } else = false
+""")
 
+
+_item_in_list_template = string.Template(r"""
+${func_name} = true if {
+    lhs_list = to_list(${lhs})
+    check_item_in_list(lhs_list, ${rhs})
+} else = false             
+""")
+
+_check_item_not_in_list = """
+check_item_not_in_list(lhs_list, rhs_list) = true if {
+	array := [item | item := lhs_list[_]; not item in rhs_list]
+    count(array) > 0
+} else = false
+"""
+
+_check_item_in_list = """
+check_item_in_list(lhs_list, rhs_list) = true if {
+	array := [item | item := lhs_list[_]; item in rhs_list]
+    count(array) > 0
+} else = false
+"""
+
+_to_list_func = """
 to_list(val) = output if {
     is_array(val)
     output = val
@@ -61,18 +86,14 @@ to_list(val) = output if {
     not is_array(val)
     output = [val]
 }
-                                        
-check_item_not_in_list(lhs_list, rhs_list) = true if {
-	array := [item | item := lhs_list[_]; not item in rhs_list]
-    count(array) > 0
-} else = false
-""")
+"""
 
 
 @dataclass
 class RegoFunc:
     name: str = ""
     body: str = ""
+    called_util_funcs: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -80,6 +101,7 @@ class RegoPolicy:
     package: str = ""
     import_statements: List[str] = field(default_factory=list)
     condition_funcs: List[RegoFunc] = field(default_factory=list)
+    util_funcs: List[str] = field(default_factory=list)
     action_func: str = ""
     vars_declaration: dict = field(default_factory=dict)
     tags: List[str] = field(default_factory=list)
@@ -100,6 +122,10 @@ class RegoPolicy:
             for var_name, val in self.vars_declaration.items():
                 val_str = json.dumps(val)
                 content.append(f"{var_name} = {val_str}")
+        
+        # util funcs
+        for uf in self.util_funcs:
+            content.append(uf)
 
         # rules
         for rf in self.condition_funcs:
@@ -153,8 +179,9 @@ def generate_rego_from_ast(input, output):
         # condition -> rule
         _name = pol.get("name", "")
         condition = pol.get("condition", {})
-        condition_funcs = condition_to_rule(condition, _name)
+        condition_funcs, util_funcs = condition_to_rule(condition, _name)
         rego_policy.condition_funcs = condition_funcs
+        rego_policy.util_funcs = util_funcs
         
         action = pol.get("actions", [])[0]
         action_func = action_to_rule(action, condition_funcs)
@@ -183,11 +210,14 @@ def action_to_rule(input: dict, conditions: list):
         rules.append(print_msg)
         template = _deny_template
         return make_func_from_cond("deny", template, rules)
-    # elif action_type == "allow":
-    #     rules.append(condition.name)
-    #     msg = action_args.get("msg", "")
-    #     print_msg = convert_to_print(msg)
-    #     rules.append(print_msg)
+    elif action_type == "allow":
+        for cond in conditions:
+            rules.append(cond.name)
+        msg = action_args.get("msg", "")
+        print_msg = convert_to_print(msg)
+        rules.append(print_msg)
+        template = _allow_template
+        return make_func_from_cond("allow", template, rules)
     # elif action_type == "info":
     # elif action_type == "warn":
     # elif action_type == "ignore":
@@ -209,13 +239,20 @@ def convert_to_print(input_text):
 # func to convert each condition to rego rules
 def condition_to_rule(condition: dict, policy_name: str):
     funcs = []
+    used_util_funcs = []
     if "AllCondition" in condition:
         _funcs = [convert_condition_func(cond, policy_name, i) for i, cond in enumerate(condition["AllCondition"])]
         funcs.extend(_funcs)
-    else:
-        _func = convert_condition_func(condition)
-        funcs.append(_func)
-    return funcs
+        for _f in _funcs:
+            used_util_funcs.extend(_f.called_util_funcs)
+    elif "AnyCondition" in condition:
+        _funcs = [convert_condition_func(cond, policy_name, i) for i, cond in enumerate(condition["AnyCondition"])]
+        funcs.extend(_funcs)  
+        for _f in _funcs:
+            used_util_funcs.extend(_f.called_util_funcs)
+    # util funcs
+    used_util_funcs = (list(set(used_util_funcs)))
+    return funcs, used_util_funcs
 
 
 # TODO: support all operations
@@ -229,16 +266,26 @@ def convert_condition_func(condition: dict, policy_name: str, index: int):
         lhs = condition["EqualsExpression"]["lhs"]
         lhs_val = list(lhs.values())[0]
         rhs = condition["EqualsExpression"]["rhs"]
-        rhs_val = list(rhs.values())[0]
-        conditions = [f"{lhs_val} != {rhs_val}"]
+        for type, val in rhs.items():
+            if type == "String":
+                rhs_val = val
+                conditions = [f'{lhs_val} == "{rhs_val}"']
+            elif type == "Boolean":
+                conditions = [f"{lhs_val}"]
         template = _if_template
         rf.body = make_func_from_cond(func_name, template, conditions)
     elif "NotEqualsExpression" in condition:
         lhs = condition["NotEqualsExpression"]["lhs"]
         lhs_val = list(lhs.values())[0]
         rhs = condition["NotEqualsExpression"]["rhs"]
-        rhs_val = list(rhs.values())[0]
-        conditions = [f"{lhs_val} != {rhs_val}"]
+        for type, val in rhs.items():
+            if type == "String":
+                rhs_val = val
+                conditions = [f'{lhs_val} != "{rhs_val}"']
+            elif type == "Boolean":
+                rhs_val = val
+                conditions = [f"not {lhs_val}"]
+        template = _if_template
         template = _if_template
         rf.body = make_func_from_cond(func_name, template, conditions)
     elif "ItemNotInListExpression" in condition:
@@ -246,7 +293,17 @@ def convert_condition_func(condition: dict, policy_name: str, index: int):
         lhs_val = list(lhs.values())[0]
         rhs = condition["ItemNotInListExpression"]["rhs"]
         rhs_val = list(rhs.values())[0]
-        template = _item_not_in_template
+        template = _item_not_in_list_template
+        rf.called_util_funcs = [_to_list_func, _check_item_not_in_list]
+        rf.body = make_func_from_val(func_name, template, lhs=lhs_val, rhs=rhs_val)
+    elif "ItemInListExpression" in condition:
+        lhs = condition["ItemInListExpression"]["lhs"]
+        lhs_val = list(lhs.values())[0]
+        rhs = condition["ItemInListExpression"]["rhs"]
+        rhs_val = list(rhs.values())[0]
+        conditions = [lhs_val, rhs_val]
+        template = _item_in_list_template
+        rf.called_util_funcs = [_to_list_func, _check_item_in_list]
         rf.body = make_func_from_val(func_name, template, lhs=lhs_val, rhs=rhs_val)
     return rf
 

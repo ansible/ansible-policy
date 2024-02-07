@@ -1,0 +1,16 @@
+# package-example.yml
+---
+- name: Check for rds_instance version
+  hosts: localhost 
+  vars:
+    allowed_versions:
+      - "8.0.23"
+      - "10.0.35"
+  policies:
+    - name: Check for rds_instance version
+      condition: input["amazon.aws.rds_instance"].engine_version not in allowed_versions
+      actions:
+        - deny:
+            msg: The version {{ input["amazon.aws.rds_instance"].engine_version}} is not allowed, allowed versions are one of {{ allowed_versions }}
+      tags:
+        - compliance
