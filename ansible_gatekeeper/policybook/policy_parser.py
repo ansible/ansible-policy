@@ -72,6 +72,11 @@ def parse_policies(policies: Dict) -> List[pm.Policy]:
             )
 
         tags = pol.get("tags", [])
+        target = pol.get("target")
+        if target is None:
+            raise Exception("Policy target not provided")
+        if target == "":
+            raise Exception("Policy target cannot be an empty string")
         pol_names.append(name)
 
         parsed_pol = pm.Policy(
@@ -80,6 +85,7 @@ def parse_policies(policies: Dict) -> List[pm.Policy]:
             actions=parse_actions(pol),
             enabled=pol.get("enabled", True),
             tags=tags,
+            target=target
         )
         if parsed_pol.enabled:
             pol_list.append(parsed_pol)

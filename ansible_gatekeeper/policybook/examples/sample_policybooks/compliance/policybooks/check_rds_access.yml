@@ -4,6 +4,7 @@
   hosts: localhost 
   policies:
     - name: Prohibit publicly accessible RDS instances
+      target: task
       condition: 
         any:
         - input["amazon.aws.rds_instance"].publicly_accessible == true

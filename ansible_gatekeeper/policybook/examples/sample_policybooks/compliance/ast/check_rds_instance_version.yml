@@ -21,6 +21,7 @@
         name: Check for rds_instance version
         tags:
         - compliance
+        target: task
     vars:
       allowed_versions:
       - 8.0.23

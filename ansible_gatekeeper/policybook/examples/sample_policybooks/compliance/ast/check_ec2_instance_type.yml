@@ -22,6 +22,7 @@
         name: Check for ec2_instance type
         tags:
         - compliance
+        target: task
     vars:
       allowed_instance_types:
       - t2.micro

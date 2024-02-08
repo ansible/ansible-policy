@@ -20,4 +20,5 @@
         name: Prohibit EC2 instances without a VPC
         tags:
         - compliance
+        target: task
     vars: {}

@@ -6,6 +6,7 @@ import future.keywords.in
 import data.ansible_gatekeeper.resolve_var
 
 
+__target__ = "task"
 __tags__ = ["compliance"]
 
 

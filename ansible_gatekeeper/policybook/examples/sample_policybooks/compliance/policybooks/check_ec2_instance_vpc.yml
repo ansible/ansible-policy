@@ -4,6 +4,7 @@
   hosts: localhost 
   policies:
     - name: Prohibit EC2 instances without a VPC
+      target: task
       condition: input["amazon.aws.ec2_instance"] not contains vpc_subnet_id
       actions:
         - deny:

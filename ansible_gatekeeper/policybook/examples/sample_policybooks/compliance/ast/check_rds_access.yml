@@ -20,4 +20,5 @@
         name: Prohibit publicly accessible RDS instances
         tags:
         - compliance
+        target: task
     vars: {}

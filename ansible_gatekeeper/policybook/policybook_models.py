@@ -24,6 +24,7 @@ class Policy(NamedTuple):
     actions: List[Action]
     enabled: bool
     tags: List[str]
+    target: str
 
 
 class PolicySet(NamedTuple):

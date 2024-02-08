@@ -206,10 +206,11 @@ def create_binary_node(name, parsed_condition):
 def visit_policy(parsed_policy: Policy):
     data = {
         "name": parsed_policy.name,
+        "target": parsed_policy.target,
         "condition": generate_condition(parsed_policy.condition),
         "actions": visit_actions(parsed_policy.actions),
         "enabled": parsed_policy.enabled,
-        "tags": parsed_policy.tags
+        "tags": parsed_policy.tags,
     }
 
     return {"Policy": data}

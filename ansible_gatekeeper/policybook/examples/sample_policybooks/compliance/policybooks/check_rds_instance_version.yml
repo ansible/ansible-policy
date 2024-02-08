@@ -8,6 +8,7 @@
       - "10.0.35"
   policies:
     - name: Check for rds_instance version
+      target: task
       condition: input["amazon.aws.rds_instance"].engine_version not in allowed_versions
       actions:
         - deny:

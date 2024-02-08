@@ -4,6 +4,7 @@
   hosts: localhost 
   policies:
     - name: Check for non-fqcn module
+      target: task
       condition: input._agk.task.module_info.fqcn != input._agk.task.module
       actions:
         - deny:

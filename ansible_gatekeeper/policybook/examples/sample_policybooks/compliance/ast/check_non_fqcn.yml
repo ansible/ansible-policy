@@ -20,4 +20,5 @@
         name: Check for non-fqcn module
         tags:
         - compliance
+        target: task
     vars: {}

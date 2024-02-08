@@ -99,6 +99,7 @@ class RegoPolicy:
     action_func: str = ""
     vars_declaration: dict = field(default_factory=dict)
     tags: List[str] = field(default_factory=list)
+    target: str = ""
     
     def to_rego(self):
         content = []
@@ -106,6 +107,8 @@ class RegoPolicy:
         content.append("\n")
         content.extend(self.import_statements)
         content.append("\n")
+        # target
+        content.append(f'__target__ = "{self.target}"')
         # tags
         if self.tags:
             tags_str = json.dumps(self.tags)
@@ -169,6 +172,9 @@ def generate_rego_from_ast(input, output):
         rego_policy.tags = pol.get("tags", [])
         # vars
         rego_policy.vars_declaration = ps.get("vars", [])
+        # target
+        rego_policy.target = pol.get("target")
+
 
         # condition -> rule
         _name = pol.get("name", "")

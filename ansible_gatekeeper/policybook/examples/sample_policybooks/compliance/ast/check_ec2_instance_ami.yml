@@ -21,6 +21,7 @@
         name: Restrict instances with unapproved AMIs
         tags:
         - compliance
+        target: task
     vars:
       allowed_image_ids:
       - ami-123456

@@ -31,6 +31,7 @@
         name: Check for insecure file permission
         tags:
         - compliance
+        target: task
     vars:
       insecure_file_permission:
       - '1777'

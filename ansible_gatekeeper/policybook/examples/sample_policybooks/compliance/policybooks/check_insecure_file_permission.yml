@@ -9,6 +9,7 @@
     - "0755"
   policies:
     - name: Check for insecure file permission
+      target: task
       condition: 
         any:
         - input["ansible.builtin.file"].mode in insecure_file_permission

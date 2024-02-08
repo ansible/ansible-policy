@@ -4,6 +4,7 @@
   hosts: localhost 
   policies:
     - name: Check for file change
+      target: task
       condition: input["ansible.builtin.file"].mode != "444"
       actions:
         - deny:

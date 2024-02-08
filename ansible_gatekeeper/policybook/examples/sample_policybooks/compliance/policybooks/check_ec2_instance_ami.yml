@@ -8,6 +8,7 @@
       - ami-789011
   policies:
     - name: Restrict instances with unapproved AMIs
+      target: task
       condition: input["amazon.aws.rds_instance"].image_id not in allowed_image_ids
       actions:
         - deny:

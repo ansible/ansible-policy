@@ -21,4 +21,5 @@
         name: Check for file change
         tags:
         - compliance
+        target: task
     vars: {}
