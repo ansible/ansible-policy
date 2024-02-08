@@ -23,8 +23,8 @@ cd ansible_gatekeeper/policybook
 
 As examples, the following policybooks can be found in the `examples/sample_policybooks` directory. 
 
-- [policybook_check_pkg.yml](./examples/sample_policybooks/compliance/policybooks/policybook_check_pkg.yml): Check if only authorized packages are installed.
-- [policybook_check_collection.yml](./examples/sample_policybooks/compliance/policybooks/policybook_check_collection.yml): Check if only authorized collections are used
+- [policybook_check_pkg.yml](./examples/sample_policybooks/compliance/policybooks/check_pkg.yml): Check if only authorized packages are installed.
+- [policybook_check_collection.yml](./examples/sample_policybooks/compliance/policybooks/check_collection.yml): Check if only authorized collections are used
 
 ```
 $ ls examples/sample_policybooks/compliance/policybooks
@@ -40,8 +40,8 @@ python to_ast.py \
 -o examples/sample_policybooks/compliance/ast/ast_check_pkg.yml
 ```
 The generated AST files are as follows:
-- [ast_check_pkg.yml](./examples/sample_policybooks/compliance/ast/ast_check_pkg.yml).
-- [ast_check_collection.yml](./examples/sample_policybooks/compliance/ast/ast_check_collection.yml)
+- [ast_check_pkg.yml](./examples/sample_policybooks/compliance/ast/check_pkg.yml).
+- [ast_check_collection.yml](./examples/sample_policybooks/compliance/ast/check_collection.yml)
 
 ### 4. generate Rego policy from AST
 
