@@ -12,12 +12,6 @@ __tags__ = ["compliance"]
 
 allowed_image_ids = ["ami-123456", "ami-789011"]
 
-check_item_not_in_list(lhs_list, rhs_list) = true if {
-	array := [item | item := lhs_list[_]; not item in rhs_list]
-    count(array) > 0
-} else = false
-
-
 to_list(val) = output if {
     is_array(val)
     output = val
@@ -27,6 +21,12 @@ to_list(val) = output if {
     not is_array(val)
     output = [val]
 }
+
+
+check_item_not_in_list(lhs_list, rhs_list) = true if {
+	array := [item | item := lhs_list[_]; not item in rhs_list]
+    count(array) > 0
+} else = false
 
 
 Restrict_instances_with_unapproved_AMIs_0 = true if {

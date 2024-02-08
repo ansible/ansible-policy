@@ -11,7 +11,7 @@
       condition: 
         any:
         - input.become == yes and input.become_user not in allowed_users
-        - input.become == yes and become_user not in input
+        - input.become == yes and input lacks key become_user
       actions:
         - deny:
             msg: privilage escalation is detected. allowed users are one of {{ allowed_users }}
@@ -22,7 +22,7 @@
       condition: 
         any:
         - input.become == yes and input.become_user not in allowed_users
-        - input.become == yes and become_user not in input
+        - input.become == yes and input lacks key become_user
       actions:
         - deny:
             msg: privilage escalation is detected. allowed users are one of {{ allowed_users }}

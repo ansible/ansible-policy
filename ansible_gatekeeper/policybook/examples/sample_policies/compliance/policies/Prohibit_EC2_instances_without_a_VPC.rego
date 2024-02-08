@@ -12,7 +12,9 @@ __tags__ = ["compliance"]
 
 
 Prohibit_EC2_instances_without_a_VPC_0 = true if {
-    
+    input["amazon.aws.ec2_instance"]
+    input_keys := [key | input["amazon.aws.ec2_instance"][key]; key == "vpc_subnet_id"]
+    count(input_keys) == 0
 }
 
 

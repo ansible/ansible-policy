@@ -1,3 +1,4 @@
+from sys import implementation
 import yaml
 from dataclasses import dataclass, field
 from typing import List, Dict
@@ -7,80 +8,11 @@ import json
 import os
 import re
 import glob
+from rego_templates import TemplateManager
+from json_generator import OPERATOR_MNEMONIC
 
 
-OPERATOR_MNEMONIC = {
-    "!=": "NotEqualsExpression",
-    "==": "EqualsExpression",
-    "and": "AndExpression",
-    "or": "OrExpression",
-    ">": "GreaterThanExpression",
-    "<": "LessThanExpression",
-    ">=": "GreaterThanOrEqualToExpression",
-    "<=": "LessThanOrEqualToExpression",
-    "+": "AdditionExpression",
-    "-": "SubtractionExpression",
-    "<<": "AssignmentExpression",
-    "in": "ItemInListExpression",
-    "not in": "ItemNotInListExpression",
-    "contains": "ListContainsItemExpression",
-    "not contains": "ListNotContainsItemExpression",
-}
-
-
-# rego action templates
-_deny_template = string.Template(r"""
-deny = true if {
-    ${steps}
-} else = false
-""")
-
-_allow_template = string.Template(r"""
-allow = true if {
-    ${steps}
-} else = false
-""")
-
-# rego condition templates
-_if_template = string.Template(r"""
-${func_name} = true if {
-    ${steps}
-}
-""")
-
-# rego operation templates
-_item_not_in_list_template = string.Template(r"""lhs_list = to_list(${lhs})
-    check_item_not_in_list(lhs_list, ${rhs})""")
-
-_item_in_list_template = string.Template(r"""lhs_list = to_list(${lhs})
-    check_item_in_list(lhs_list, ${rhs})""")
-
-# rego util funcs
-_check_item_not_in_list = """
-check_item_not_in_list(lhs_list, rhs_list) = true if {
-	array := [item | item := lhs_list[_]; not item in rhs_list]
-    count(array) > 0
-} else = false
-"""
-
-_check_item_in_list = """
-check_item_in_list(lhs_list, rhs_list) = true if {
-	array := [item | item := lhs_list[_]; item in rhs_list]
-    count(array) > 0
-} else = false
-"""
-
-_to_list_func = """
-to_list(val) = output if {
-    is_array(val)
-    output = val
-}
-
-to_list(val) = output if {
-    not is_array(val)
-    output = [val]
-}
-"""
+rego_tpl = TemplateManager()
 
 
 @dataclass
@@ -209,7 +141,7 @@ def action_to_rule(input: dict, conditions: list):
         msg = action_args.get("msg", "")
         print_msg = convert_to_print(msg)
         rules.append(print_msg)
-        template = _deny_template
+        template = rego_tpl._deny_func
         return make_func_from_cond("deny", template, rules)
     elif action_type == "allow":
         for cond in conditions:
@@ -218,7 +150,7 @@ def action_to_rule(input: dict, conditions: list):
         msg = action_args.get("msg", "")
         print_msg = convert_to_print(msg)
         rules.append(print_msg)
-        template = _allow_template
+        template = rego_tpl._allow_func
         return make_func_from_cond("allow", template, rules)
     # elif action_type == "info":
     # elif action_type == "warn":
@@ -280,12 +212,14 @@ def convert_condition_func(condition: dict, policy_name: str, index: int = 0):
             _exp, _utils = transpile_expression(rhs)
             rego_expressions.extend(_exp)
             util_funcs.extend(_utils)
-        template = _if_template
+        template = rego_tpl._if_func
         rf.called_util_funcs = util_funcs
         rf.body = make_func_from_cond(func_name, template, rego_expressions)
+    # if "OrExpression" in condition:
+    #     TODO: implementation
     else:
         rego_expressions, util_funcs = transpile_expression(condition)
-        template = _if_template
+        template = rego_tpl._if_func
         rf.called_util_funcs = util_funcs
         rf.body = make_func_from_cond(func_name, template, rego_expressions)
     return rf
@@ -320,17 +254,49 @@ def transpile_expression(ast_exp):
         lhs_val = list(lhs.values())[0]
         rhs = ast_exp["ItemNotInListExpression"]["rhs"]
         rhs_val = list(rhs.values())[0]
-        template = _item_not_in_list_template
-        util_funcs = [_to_list_func, _check_item_not_in_list]
+        template =  rego_tpl._item_not_in_list_expression
+        util_funcs = [rego_tpl._to_list_func, rego_tpl._item_not_in_list_func]
         rego_expressions.append(make_expression_from_val(template, lhs=lhs_val, rhs=rhs_val))
     elif "ItemInListExpression" in ast_exp:
         lhs = ast_exp["ItemInListExpression"]["lhs"]
         lhs_val = list(lhs.values())[0]
         rhs = ast_exp["ItemInListExpression"]["rhs"]
         rhs_val = list(rhs.values())[0]
-        template = _item_in_list_template
-        util_funcs = [_to_list_func, _check_item_in_list]
+        template = rego_tpl._item_in_list_expression
+        util_funcs = [rego_tpl._to_list_func, rego_tpl._item_in_list_func]
         rego_expressions.append(make_expression_from_val(template, lhs=lhs_val, rhs=rhs_val))
+    # elif "ListContainsItemExpression" in ast_exp:
+    #     TODO: implementation
+    # elif "ListNotContainsItemExpression" in ast_exp:
+    #     TODO: implementation
+    elif "KeyInDictExpression" in ast_exp:
+        lhs = ast_exp["KeyInDictExpression"]["lhs"]
+        lhs_val = list(lhs.values())[0]
+        rhs = ast_exp["KeyInDictExpression"]["rhs"]
+        rhs_val = list(rhs.values())[0].replace('"', "")
+        template = rego_tpl._key_in_dict_expression
+        rego_expressions.append(make_expression_from_val(template, lhs=lhs_val, rhs=f'"{rhs_val}"'))
+    elif "KeyNotInDictExpression" in ast_exp:
+        lhs = ast_exp["KeyNotInDictExpression"]["lhs"]
+        lhs_val = list(lhs.values())[0]
+        rhs = ast_exp["KeyNotInDictExpression"]["rhs"]
+        rhs_val = list(rhs.values())[0].replace('"', "")
+        template = rego_tpl._key_not_in_dict_expression
+        rego_expressions.append(make_expression_from_val(template, lhs=lhs_val, rhs=f'"{rhs_val}"'))
+    # elif "GreaterThanExpression" in ast_exp:
+    #     TODO: implementation
+    # elif "LessThanExpression" in ast_exp:
+    #     TODO: implementation
+    # elif "GreaterThanOrEqualToExpression" in ast_exp:
+    #     TODO: implementation
+    # elif "LessThanOrEqualToExpression" in ast_exp:
+    #     TODO: implementation
+    # elif "AdditionExpression" in ast_exp:
+    #     TODO: implementation
+    # elif "SubtractionExpression" in ast_exp:
+    #     TODO: implementation
+    # elif "AssignmentExpression" in ast_exp:
+    #     TODO: implementation
     return rego_expressions, util_funcs
 
 

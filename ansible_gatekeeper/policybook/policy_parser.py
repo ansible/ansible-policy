@@ -71,12 +71,15 @@ def parse_policies(policies: Dict) -> List[pm.Policy]:
                 f"Policy with name {name} defined multiple times"
             )
 
-        tags = pol.get("tags", [])
         target = pol.get("target")
         if target is None:
             raise Exception("Policy target not provided")
+
         if target == "":
             raise Exception("Policy target cannot be an empty string")
+
+        tags = pol.get("tags", [])
+
         pol_names.append(name)
 
         parsed_pol = pm.Policy(

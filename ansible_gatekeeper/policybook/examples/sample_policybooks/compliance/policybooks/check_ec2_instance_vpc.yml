@@ -5,7 +5,7 @@
   policies:
     - name: Prohibit EC2 instances without a VPC
       target: task
-      condition: input["amazon.aws.ec2_instance"] not contains vpc_subnet_id
+      condition: input["amazon.aws.ec2_instance"] lacks key vpc_subnet_id
       actions:
         - deny:
             msg: creating EC2 instances without a VPC is prohibited. specify vpc_subnet_id.

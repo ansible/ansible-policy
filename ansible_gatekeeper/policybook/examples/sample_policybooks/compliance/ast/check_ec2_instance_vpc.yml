@@ -11,7 +11,7 @@
               msg: creating EC2 instances without a VPC is prohibited. specify vpc_subnet_id.
         condition:
           AllCondition:
-          - ListNotContainsItemExpression:
+          - KeyNotInDictExpression:
               lhs:
                 String: input["amazon.aws.ec2_instance"]
               rhs:

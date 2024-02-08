@@ -62,6 +62,8 @@ OPERATOR_MNEMONIC = {
     "not in": "ItemNotInListExpression",
     "contains": "ListContainsItemExpression",
     "not contains": "ListNotContainsItemExpression",
+    "has key": "KeyInDictExpression",
+    "lacks key": "KeyNotInDictExpression"
 }
 
 
