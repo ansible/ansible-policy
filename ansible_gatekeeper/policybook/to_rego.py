@@ -265,10 +265,24 @@ def transpile_expression(ast_exp):
         template = rego_tpl._item_in_list_expression
         util_funcs = [rego_tpl._to_list_func, rego_tpl._item_in_list_func]
         rego_expressions.append(make_expression_from_val(template, lhs=lhs_val, rhs=rhs_val))
-    # elif "ListContainsItemExpression" in ast_exp:
-    #     TODO: implementation
-    # elif "ListNotContainsItemExpression" in ast_exp:
-    #     TODO: implementation
+    elif "ListContainsItemExpression" in ast_exp:
+        # ListContainsItemExpression is basically the same as ItemInListExpression 
+        #   except for the difference in the position of the lhs and rhs values.
+        lhs = ast_exp["ListContainsItemExpression"]["lhs"]
+        lhs_val = list(lhs.values())[0]
+        rhs = ast_exp["ListContainsItemExpression"]["rhs"]
+        rhs_val = list(rhs.values())[0]
+        template = rego_tpl._item_in_list_expression
+        util_funcs = [rego_tpl._to_list_func, rego_tpl._item_in_list_func]
+        rego_expressions.append(make_expression_from_val(template, lhs=rhs_val, rhs=lhs_val))
+    elif "ListNotContainsItemExpression" in ast_exp:
+        lhs = ast_exp["ItemNotInListExpression"]["lhs"]
+        lhs_val = list(lhs.values())[0]
+        rhs = ast_exp["ItemNotInListExpression"]["rhs"]
+        rhs_val = list(rhs.values())[0]
+        template =  rego_tpl._item_not_in_list_expression
+        util_funcs = [rego_tpl._to_list_func, rego_tpl._item_not_in_list_func]
+        rego_expressions.append(make_expression_from_val(template, lhs=rhs_val, rhs=lhs_val))
     elif "KeyInDictExpression" in ast_exp:
         lhs = ast_exp["KeyInDictExpression"]["lhs"]
         lhs_val = list(lhs.values())[0]

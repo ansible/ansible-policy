@@ -10,8 +10,8 @@
       target: task
       condition: 
         any:
-        - input.become == yes and input.become_user not in allowed_users
-        - input.become == yes and input lacks key become_user
+        - input.become == true and input.become_user not in allowed_users
+        - input.become == true and input lacks key become_user
       actions:
         - deny:
             msg: privilage escalation is detected. allowed users are one of {{ allowed_users }}
@@ -21,8 +21,8 @@
       target: play
       condition: 
         any:
-        - input.become == yes and input.become_user not in allowed_users
-        - input.become == yes and input lacks key become_user
+        - input.become == true and input.become_user not in allowed_users
+        - input.become == true and input lacks key become_user
       actions:
         - deny:
             msg: privilage escalation is detected. allowed users are one of {{ allowed_users }}
