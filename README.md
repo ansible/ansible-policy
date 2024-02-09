@@ -26,7 +26,7 @@ $ cd ansible-gatekeeper
 $ pip install -e .
 ```
 
-### 4. iInstall `gatekeeper.rego` modules
+<!-- ### 4. iInstall `gatekeeper.rego` modules
 
 ```bash
 $ ansible-galaxy collection install collections/gatekeeper.rego --force
@@ -37,6 +37,34 @@ Starting collection install process
 Installing 'gatekeeper.rego:0.0.1' to '/Users/user/.ansible/collections/ansible_collections/gatekeeper/rego'
 Created collection for gatekeeper.rego:0.0.1 at /Users/user/.ansible/collections/ansible_collections/gatekeeper/rego
 gatekeeper.rego:0.0.1 was installed successfully
+``` -->
+### 4. Generate Rego policies from Policybook
+As examples, the following policybooks can be found in the `examples/org_wide_policies` directory. 
+
+-  `check_package_policy` [yml](./examples/org_wide_policies/compliance/policybooks/check_pkg.yml): Check if only authorized packages are installed.
+- `check_collection_policy` [yml](./examples/org_wide_policies/compliance/policybooks/check_collection.yml): Check if only authorized collections are used
+- `check_become_policy` [yml](./examples/org_wide_policies/compliance/policybooks/check_become.yml): check if `become: true` is used and check if only `trusted user` is used
+
+In order to be evaluated by Ansible Gatekeeper, Policybooks should be converted to Rego policy.
+Policybook can be automatically transpiled into `AST` and `Rego` policy with the commands below.
+
+1. transform to AST
+```
+$ python ansible_gatekeeper/policybook/to_ast.py -d examples/org_wide_policies/compliance/policybooks -o examples/org_wide_policies/compliance/ast
+```
+2. transform to Rego
+```
+$ python ansible_gatekeeper/policybook/to_rego.py -d examples/org_wide_policies/compliance/ast -o examples/org_wide_policies/compliance/policies
+```
+
+
+Now, we have 3 policies written in Rego.
+```
+$ tree examples/org_wide_policies/compliance/policies                                          
+examples/org_wide_policies/compliance/policies
+├── Check_for_collection_name.rego
+├── Check_for_package_name.rego
+└── Check_for_using_become_in_task.rego
 ```
 
 ### 5. Configure policies
@@ -46,12 +74,11 @@ A configuration for ansible-gatekeeper is something like the following.
 ```ini
 [policy]
 default disabled
-policies.community.*      tag=security    enabled
 policies.org.compliance   tag=compliance  enabled
 
 [source]
-# policies.community.mongodb = policies.community_mongodb:0.0.1     # collection policy
-policies.community.mongodb = examples/policies-community_mongodb-0.0.1.tar.gz   # collection policy
+# policies.community.mongodb = policies.community_mongodb:0.0.1     # collection policy (ansible-galaxy)
+# policies.community.mongodb = examples/policies-community_mongodb-0.0.1.tar.gz   # collection policy (local tarball)
 policies.org.compliance    = examples/org_wide_policies/compliance    # org-wide compliance policy
 ```
 
@@ -59,16 +86,19 @@ policies.org.compliance    = examples/org_wide_policies/compliance    # org-wide
 
 `source` field is a list of module packages and their source like ansible-galaxy or local directory. ansible-gatekeeper installs policies based on this configuration.
 
-The example above is configured to enable the follwoing 2 policies.
+The example above is configured to enable the follwoing 3 `rego` policies, which we generated in **step 4**.
+- [check_package_policy](./examples/org_wide_policies/compliance/policies/Check_for_package_name.rego)
+- [check_collection_policy](./examples/org_wide_policies/compliance/policies/Check_for_collection_name.rego)
+- [check_become_policy](./examples/org_wide_policies/compliance/policies/Check_for_using_become_in_task.rego)
 
-- `mongodb_user_db_policy` ([yaml](./examples/collection_policies/policies.community_mongodb/policies/check_database_name.yml), [rego](./examples/collection_policies/policies.community_mongodb/policies/check_database_name_generated.rego)): check if a database name which is used in the task is allowed or not, for tasks using `community.mongodb.mongodb_user`.
-- `check_become_policy` ([yaml](./examples/org_wide_policies/compliance/policies/check_become.yml), [rego](./examples/org_wide_policies/compliance/policies/check_become_generated.rego)): check if `become: true` is used or not for all tasks
+<!-- - `mongodb_user_db_policy` ([yaml](./examples/collection_policies/policies.community_mongodb/policies/check_database_name.yml), [rego](./examples/collection_policies/policies.community_mongodb/policies/check_database_name_generated.rego)): check if a database name which is used in the task is allowed or not, for tasks using `community.mongodb.mongodb_user`.
+- `check_become_policy` ([yaml](./examples/org_wide_policies/compliance/policies/check_become.yml), [rego](./examples/org_wide_policies/compliance/policies/check_become_generated.rego)): check if `become: true` is used or not for all tasks -->
 
 You can use [the example config file](examples/ansible-gatekeeper.cfg) for the next step.
 
 ### 6. Running policy evaluation on a playbook
 
-[The example playbook](examples/project/playbook.yml) has some tasks that violate the 2 policies above.
+[The example playbook](examples/project/playbook.yml) has some tasks that violate the 3 policies above.
 
 ansible-gatekeeper can report these violations like the following.
 
@@ -76,12 +106,14 @@ ansible-gatekeeper can report these violations like the following.
 $ ansible-gatekeeper -p examples/project/playbook.yml -c examples/ansible-gatekeeper.cfg
 ```
 
-<img src="images/example_output.png" width="600px">
+<img src="images/example_output_policybook.png" width="600px">
 
 
-[The third task](examples/project/playbook.yml#L15) `Create mongodb user` is using a database `not-allowed-db` by a variable, and the variable is successfully resolved and this value is reported as a policy violation.
+From the result, you can see the details on violations.
 
-[The fourth task](examples/project/playbook.yml#L23) `Touch a file with root permission` is creating a file with a root permission by using `become: true`, and this is detected by the policy `check_become_policy`.
+- [The second task](examples/project/playbook.yml#L30) `Install nginx` is installing a package `nginx` with a root permission by using `become: true`. Nginx is not listed in the allowed packages and this is detected by the `check_package_policy`. Also privilege escalation is detected by the `check_become_policy`.
+
+- [The fourth task](examples/project/playbook.yml#L41) `Set MySQL root password` is using a collection `community.mysql` which is not in the allowed list, and this is detected by the policy `check_collection_policy`.
 
 
 ```

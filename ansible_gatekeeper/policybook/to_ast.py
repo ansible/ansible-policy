@@ -27,9 +27,7 @@ def main(ansible_policy, ast_file):
     try:
         with open(ansible_policy, "r") as f:
             data = yaml.safe_load(f.read())
-            policyset = generate_dict_policysets(
-                parse_policy_sets(data)
-            )
+            policyset = generate_dict_policysets(parse_policy_sets(data))
         os.makedirs(os.path.dirname(ast_file), exist_ok=True)
         with open(ast_file, "w") as f:
             f.write(yaml.dump(policyset))
@@ -41,13 +39,13 @@ def main(ansible_policy, ast_file):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="TODO")
-    parser.add_argument("-f", "--file", help='')
-    parser.add_argument("-d", "--dir", help='')
-    parser.add_argument("-o", "--output", help='')
+    parser.add_argument("-f", "--file", help="")
+    parser.add_argument("-d", "--dir", help="")
+    parser.add_argument("-o", "--output", help="")
     args = parser.parse_args()
 
     ansible_policy = args.file
-    ansible_policy_dir = args.dir 
+    ansible_policy_dir = args.dir
     output = args.output
     if ansible_policy:
         main(ansible_policy, output)

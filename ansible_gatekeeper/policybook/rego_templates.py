@@ -37,14 +37,14 @@ key_not_in_dict_condition = """${lhs}
 # rego util funcs
 item_not_in_list_func = """
 check_item_not_in_list(lhs_list, rhs_list) = true if {
-	array := [item | item := lhs_list[_]; not item in rhs_list]
+    array := [item | item := lhs_list[_]; not item in rhs_list]
     count(array) > 0
 } else = false
 """
 
 item_in_list_func = """
 check_item_in_list(lhs_list, rhs_list) = true if {
-	array := [item | item := lhs_list[_]; item in rhs_list]
+    array := [item | item := lhs_list[_]; item in rhs_list]
     count(array) > 0
 } else = false
 """
@@ -82,5 +82,3 @@ class TemplateManager:
 
     def add_template(self, template):
         return string.Template(template)
-
-

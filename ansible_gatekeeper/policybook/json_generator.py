@@ -13,9 +13,7 @@
 #  limitations under the License.
 
 """Generate condition AST from Ansible condition."""
-from typing import Dict, List
-
-import dpath
+from typing import List
 
 from ansible_rulebook.condition_types import (
     Boolean,
@@ -32,7 +30,6 @@ from ansible_rulebook.condition_types import (
     SelectattrType,
     SelectType,
     String,
-    to_condition_type,
 )
 from ansible_rulebook.exception import (
     InvalidAssignmentException,
@@ -63,7 +60,7 @@ OPERATOR_MNEMONIC = {
     "contains": "ListContainsItemExpression",
     "not contains": "ListNotContainsItemExpression",
     "has key": "KeyInDictExpression",
-    "lacks key": "KeyNotInDictExpression"
+    "lacks key": "KeyNotInDictExpression",
 }
 
 
@@ -74,11 +71,7 @@ def visit_condition(parsed_condition: ConditionTypes):
     elif isinstance(parsed_condition, Condition):
         return visit_condition(parsed_condition.value)
     elif isinstance(parsed_condition, Boolean):
-        return (
-            {"Boolean": True}
-            if parsed_condition.value == "true"
-            else {"Boolean": False}
-        )
+        return {"Boolean": True} if parsed_condition.value == "true" else {"Boolean": False}
     elif isinstance(parsed_condition, Identifier):
         if parsed_condition.value.startswith("fact."):
             return {"Fact": parsed_condition.value[5:]}
@@ -93,16 +86,11 @@ def visit_condition(parsed_condition: ConditionTypes):
         elif parsed_condition.value.startswith("facts."):
             return {"Facts": parsed_condition.value[6:]}
         else:
-            msg = (
-                f"Invalid identifier : {parsed_condition.value} "
-                + "Should start with event., events.,fact., facts. or vars."
-            )
+            msg = f"Invalid identifier : {parsed_condition.value} " + "Should start with event., events.,fact., facts. or vars."
             raise InvalidIdentifierException(msg)
 
     elif isinstance(parsed_condition, String):
-        return {
-            "String": parsed_condition.value
-        }
+        return {"String": parsed_condition.value}
     elif isinstance(parsed_condition, Null):
         return {"NullType": None}
     elif isinstance(parsed_condition, Integer):
@@ -115,9 +103,7 @@ def visit_condition(parsed_condition: ConditionTypes):
             pattern=visit_condition(parsed_condition.pattern),
         )
         if parsed_condition.options:
-            data["options"] = [
-                visit_condition(v) for v in parsed_condition.options
-            ]
+            data["options"] = [visit_condition(v) for v in parsed_condition.options]
         return {"SearchType": data}
     elif isinstance(parsed_condition, SelectattrType):
         return dict(
@@ -147,51 +133,27 @@ def visit_condition(parsed_condition: ConditionTypes):
         elif parsed_condition.operator == "is":
             if isinstance(parsed_condition.right, String):
                 if parsed_condition.right.value == "defined":
-                    return {
-                        "IsDefinedExpression": visit_condition(
-                            parsed_condition.left
-                        )
-                    }
+                    return {"IsDefinedExpression": visit_condition(parsed_condition.left)}
             elif isinstance(parsed_condition.right, SearchType):
-                return create_binary_node(
-                    "SearchMatchesExpression", parsed_condition
-                )
+                return create_binary_node("SearchMatchesExpression", parsed_condition)
             elif isinstance(parsed_condition.right, SelectattrType):
-                return create_binary_node(
-                    "SelectAttrExpression", parsed_condition
-                )
+                return create_binary_node("SelectAttrExpression", parsed_condition)
             elif isinstance(parsed_condition.right, SelectType):
-                return create_binary_node(
-                    "SelectExpression", parsed_condition
-                )
+                return create_binary_node("SelectExpression", parsed_condition)
         elif parsed_condition.operator == "is not":
             if isinstance(parsed_condition.right, String):
                 if parsed_condition.right.value == "defined":
-                    return {
-                        "IsNotDefinedExpression": visit_condition(
-                            parsed_condition.left
-                        )
-                    }
+                    return {"IsNotDefinedExpression": visit_condition(parsed_condition.left)}
             elif isinstance(parsed_condition.right, SearchType):
-                return create_binary_node(
-                    "SearchNotMatchesExpression", parsed_condition
-                )
+                return create_binary_node("SearchNotMatchesExpression", parsed_condition)
             elif isinstance(parsed_condition.right, SelectattrType):
-                return create_binary_node(
-                    "SelectAttrNotExpression", parsed_condition
-                )
+                return create_binary_node("SelectAttrNotExpression", parsed_condition)
             elif isinstance(parsed_condition.right, SelectType):
-                return create_binary_node(
-                    "SelectNotExpression", parsed_condition
-                )
+                return create_binary_node("SelectNotExpression", parsed_condition)
         else:
             raise Exception(f"Unhandled token {parsed_condition}")
     elif isinstance(parsed_condition, NegateExpression):
-        return {
-            "NegateExpression": visit_condition(
-                parsed_condition.value
-            )
-        }
+        return {"NegateExpression": visit_condition(parsed_condition.value)}
     else:
         raise Exception(f"Unhandled token {parsed_condition}")
 
@@ -248,12 +210,7 @@ def generate_condition(ansible_condition: RuleCondition):
 
 def visit_policyset(policyset: PolicySet):
     """Generate JSON compatible rules."""
-    data = {
-        "name": policyset.name,
-        "hosts": policyset.hosts,
-        "policies": [visit_policy(pol) for pol in policyset.policies],
-        "vars": policyset.vars
-    }
+    data = {"name": policyset.name, "hosts": policyset.hosts, "policies": [visit_policy(pol) for pol in policyset.policies], "vars": policyset.vars}
 
     return {"PolicySet": data}
 
@@ -275,9 +232,5 @@ def validate_assignment_expression(value):
         raise InvalidAssignmentException(msg)
 
     if tokens[0] not in ["events", "facts"]:
-        msg = (
-            "Only events and facts can be used in assignment. "
-            + f"{value} is invalid."
-        )
+        msg = "Only events and facts can be used in assignment. " + f"{value} is invalid."
         raise InvalidAssignmentException(msg)
-

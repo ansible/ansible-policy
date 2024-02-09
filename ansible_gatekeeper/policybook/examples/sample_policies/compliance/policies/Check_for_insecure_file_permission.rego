@@ -25,7 +25,7 @@ to_list(val) = output if {
 
 
 check_item_in_list(lhs_list, rhs_list) = true if {
-	array := [item | item := lhs_list[_]; item in rhs_list]
+    array := [item | item := lhs_list[_]; item in rhs_list]
     count(array) > 0
 } else = false
 
