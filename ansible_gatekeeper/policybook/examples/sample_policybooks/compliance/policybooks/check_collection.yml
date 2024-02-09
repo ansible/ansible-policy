@@ -8,6 +8,7 @@
       - amazon.aws
   policies:
     - name: Check for collection name
+      target: task
       condition: input._agk.task.module_info.collection not in allowed_collections
       actions:
         - deny:

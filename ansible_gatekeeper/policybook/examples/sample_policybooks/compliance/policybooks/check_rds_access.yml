@@ -1,0 +1,15 @@
+# package-example.yml
+---
+- name: Prohibit publicly accessible RDS instances
+  hosts: localhost 
+  policies:
+    - name: Prohibit publicly accessible RDS instances
+      target: task
+      condition: 
+        any:
+        - input["amazon.aws.rds_instance"].publicly_accessible == true
+      actions:
+        - deny:
+            msg: it is not allowed to create publicly accessible RDS instances
+      tags:
+        - compliance

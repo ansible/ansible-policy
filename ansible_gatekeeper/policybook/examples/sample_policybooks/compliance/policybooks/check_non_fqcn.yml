@@ -1,0 +1,13 @@
+# package-example.yml
+---
+- name: Check for non-fqcn module
+  hosts: localhost 
+  policies:
+    - name: Check for non-fqcn module
+      target: task
+      condition: input._agk.task.module_info.fqcn != input._agk.task.module
+      actions:
+        - deny:
+            msg: module is written in non-fqcn
+      tags:
+        - compliance

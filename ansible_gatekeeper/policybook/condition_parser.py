@@ -72,6 +72,8 @@ VALID_SELECT_ATTR_OPERATORS = [
     "not in",
     "contains",
     "not contains",
+    "has key", 
+    "lacks key",
 ]
 
 VALID_SELECT_OPERATORS = [
@@ -309,6 +311,16 @@ condition = infix_notation(
         (
             one_of(
                 strs=["not in", "in", "not contains", "contains"],
+                caseless=True,
+                as_keyword=True,
+            ),
+            2,
+            OpAssoc.LEFT,
+            lambda toks: OperatorExpressionFactory(toks[0]),
+        ),
+        (
+            one_of(
+                strs=["has key", "lacks key"],
                 caseless=True,
                 as_keyword=True,
             ),

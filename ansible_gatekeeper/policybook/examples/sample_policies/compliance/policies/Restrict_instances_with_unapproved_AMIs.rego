@@ -1,4 +1,4 @@
-package Check_for_package_name
+package Restrict_instances_with_unapproved_AMIs
 
 
 import future.keywords.if
@@ -10,7 +10,7 @@ __target__ = "task"
 __tags__ = ["compliance"]
 
 
-allowed_packages = ["mysql-server"]
+allowed_image_ids = ["ami-123456", "ami-789011"]
 
 to_list(val) = output if {
     is_array(val)
@@ -29,13 +29,13 @@ check_item_not_in_list(lhs_list, rhs_list) = true if {
 } else = false
 
 
-Check_for_package_name_0 = true if {
-    lhs_list = to_list(input["ansible.builtin.package"].name)
-    check_item_not_in_list(lhs_list, allowed_packages)
+Restrict_instances_with_unapproved_AMIs_0 = true if {
+    lhs_list = to_list(input["amazon.aws.rds_instance"].image_id)
+    check_item_not_in_list(lhs_list, allowed_image_ids)
 }
 
 
 deny = true if {
-    Check_for_package_name_0
-    print(sprintf("The package %v is not allowed, allowed packages are one of %v", [input["ansible.builtin.package"].name, allowed_packages]))
+    Restrict_instances_with_unapproved_AMIs_0
+    print(sprintf("The image %v is not allowed, allowed images are one of %v", [input["amazon.aws.rds_instance"].image_id, allowed_image_ids]))
 } else = false

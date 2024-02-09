@@ -1,0 +1,13 @@
+# package-example.yml
+---
+- name: Prohibit EC2 instances without a VPC
+  hosts: localhost 
+  policies:
+    - name: Prohibit EC2 instances without a VPC
+      target: task
+      condition: input["amazon.aws.ec2_instance"] lacks key vpc_subnet_id
+      actions:
+        - deny:
+            msg: creating EC2 instances without a VPC is prohibited. specify vpc_subnet_id.
+      tags:
+        - compliance

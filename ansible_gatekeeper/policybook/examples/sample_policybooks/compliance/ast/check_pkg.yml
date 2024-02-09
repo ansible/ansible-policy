@@ -21,6 +21,7 @@
         name: Check for package name
         tags:
         - compliance
+        target: task
     vars:
       allowed_packages:
       - mysql-server

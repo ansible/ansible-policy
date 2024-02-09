@@ -1,4 +1,4 @@
-package Check_for_package_name
+package Check_for_rds_instance_version
 
 
 import future.keywords.if
@@ -10,7 +10,7 @@ __target__ = "task"
 __tags__ = ["compliance"]
 
 
-allowed_packages = ["mysql-server"]
+allowed_versions = ["8.0.23", "10.0.35"]
 
 to_list(val) = output if {
     is_array(val)
@@ -29,13 +29,13 @@ check_item_not_in_list(lhs_list, rhs_list) = true if {
 } else = false
 
 
-Check_for_package_name_0 = true if {
-    lhs_list = to_list(input["ansible.builtin.package"].name)
-    check_item_not_in_list(lhs_list, allowed_packages)
+Check_for_rds_instance_version_0 = true if {
+    lhs_list = to_list(input["amazon.aws.rds_instance"].engine_version)
+    check_item_not_in_list(lhs_list, allowed_versions)
 }
 
 
 deny = true if {
-    Check_for_package_name_0
-    print(sprintf("The package %v is not allowed, allowed packages are one of %v", [input["ansible.builtin.package"].name, allowed_packages]))
+    Check_for_rds_instance_version_0
+    print(sprintf("The version %v is not allowed, allowed versions are one of %v", [input["amazon.aws.rds_instance"].engine_version, allowed_versions]))
 } else = false
