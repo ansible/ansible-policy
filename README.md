@@ -59,6 +59,13 @@ $ python ansible_gatekeeper/policybook/to_rego.py -d examples/org_wide_policies/
 
 
 Now, we have 3 policies written in Rego.
+```
+$ tree examples/org_wide_policies/compliance/policies                                          
+examples/org_wide_policies/compliance/policies
+├── Check_for_collection_name.rego
+├── Check_for_package_name.rego
+└── Check_for_using_become_in_task.rego
+```
 
 ### 5. Configure policies
 
@@ -77,10 +84,10 @@ policies.org.compliance    = examples/org_wide_policies/compliance    # org-wide
 
 `source` field is a list of module packages and their source like ansible-galaxy or local directory. ansible-gatekeeper installs policies based on this configuration.
 
-The example above is configured to enable the follwoing 3 policies, which we generated in step 4.
--  `check_package_policy` [rego](./examples/org_wide_policies/compliance/policies/Check_for_package_name.rego): Check if only authorized packages are installed.
-- `check_collection_policy` [rego](./examples/org_wide_policies/compliance/policies/Check_for_collection_name.rego): Check if only authorized collections are used
-- `check_become_policy` [rego](./examples/org_wide_policies/compliance/policies/Check_for_using_become_in_task.rego): check if `become: true` is used and check if only `trusted user` is used
+The example above is configured to enable the follwoing 3 `rego`` policies, which we generated in step 4.
+- [check_package_policy](./examples/org_wide_policies/compliance/policies/Check_for_package_name.rego)
+- [check_collection_policy](./examples/org_wide_policies/compliance/policies/Check_for_collection_name.rego)
+- [check_become_policy](./examples/org_wide_policies/compliance/policies/Check_for_using_become_in_task.rego)
 
 <!-- - `mongodb_user_db_policy` ([yaml](./examples/collection_policies/policies.community_mongodb/policies/check_database_name.yml), [rego](./examples/collection_policies/policies.community_mongodb/policies/check_database_name_generated.rego)): check if a database name which is used in the task is allowed or not, for tasks using `community.mongodb.mongodb_user`.
 - `check_become_policy` ([yaml](./examples/org_wide_policies/compliance/policies/check_become.yml), [rego](./examples/org_wide_policies/compliance/policies/check_become_generated.rego)): check if `become: true` is used or not for all tasks -->
