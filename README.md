@@ -101,9 +101,10 @@ $ ansible-gatekeeper -p examples/project/playbook.yml -c examples/ansible-gateke
 
 
 From the result, you can see the details on violations.
-[The second task](examples/project/playbook.yml#L30) `Install nginx` is installing a package `nginx` with a root permission by using `become: true`. Nginx is not listed in the allowed packages and this is detected by the `check_package_policy`. Also privilege escalation is detected by the `check_become_policy`.
 
-[The fourth task](examples/project/playbook.yml#L41) `Set MySQL root password` is using a collection `community.mysql` which is not in the allowed list, and this is detected by the policy `check_collection_policy`.
+- [The second task](examples/project/playbook.yml#L30) `Install nginx` is installing a package `nginx` with a root permission by using `become: true`. Nginx is not listed in the allowed packages and this is detected by the `check_package_policy`. Also privilege escalation is detected by the `check_become_policy`.
+
+- [The fourth task](examples/project/playbook.yml#L41) `Set MySQL root password` is using a collection `community.mysql` which is not in the allowed list, and this is detected by the policy `check_collection_policy`.
 
 
 ```
