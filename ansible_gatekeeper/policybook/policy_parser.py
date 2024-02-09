@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 import policybook_models as pm
 from condition_parser import parse_condition as parse_condition_value
 
@@ -29,14 +29,10 @@ def parse_policy_sets(policy_sets: Dict) -> List[pm.PolicySet]:
 
         name = name.strip()
         if name == "":
-            raise Exception(
-                "Policyset name cannot be an empty string"
-            )
+            raise Exception("Policyset name cannot be an empty string")
 
         if name in policyset_names:
-            raise Exception(
-                f"Policy with name: {name} defined multiple times"
-            )
+            raise Exception(f"Policy with name: {name} defined multiple times")
 
         policyset_names.append(name)
 
@@ -46,9 +42,7 @@ def parse_policy_sets(policy_sets: Dict) -> List[pm.PolicySet]:
                 hosts=parse_hosts(policy_set["hosts"]),
                 vars=parse_vars(policy_set.get("vars", {})),
                 policies=parse_policies(policy_set.get("policies", {})),
-                match_multiple_policies=policy_set.get(
-                    "match_multiple_policies", False
-                ),
+                match_multiple_policies=policy_set.get("match_multiple_policies", False),
             )
         )
     return policy_set_list
@@ -67,9 +61,7 @@ def parse_policies(policies: Dict) -> List[pm.Policy]:
             raise Exception("Policy name cannot be an empty string")
 
         if name in pol_names:
-            raise Exception(
-                f"Policy with name {name} defined multiple times"
-            )
+            raise Exception(f"Policy with name {name} defined multiple times")
 
         target = pol.get("target")
         if target is None:
@@ -88,7 +80,7 @@ def parse_policies(policies: Dict) -> List[pm.Policy]:
             actions=parse_actions(pol),
             enabled=pol.get("enabled", True),
             tags=tags,
-            target=target
+            target=target,
         )
         if parsed_pol.enabled:
             pol_list.append(parsed_pol)
@@ -110,9 +102,7 @@ def parse_condition(condition: Any) -> pm.Condition:
                 [parse_condition_value(str(c)) for c in condition[when]],
             )
         else:
-            raise Exception(
-                f"Condition should have one of any, all, not_all: {condition}"
-            )
+            raise Exception(f"Condition should have one of any, all, not_all: {condition}")
     else:
         raise Exception(f"Unsupported condition {condition}")
 
@@ -135,6 +125,3 @@ def parse_action(action: Dict) -> pm.Action:
     else:
         action_args = {}
     return pm.Action(action=action_name, action_args=action_args)
-
-
-
