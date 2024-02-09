@@ -1,0 +1,19 @@
+# package-example.yml
+---
+- name: Check for privilage escalation
+  hosts: localhost 
+  vars:
+    allowed_users:
+      - "trusted_user"
+  policies:
+    - name: Check for using become in task
+      target: task
+      condition: 
+        any:
+        - input.become == true and input.become_user not in allowed_users
+        - input.become == true and input lacks key become_user
+      actions:
+        - deny:
+            msg: privilage escalation is detected. allowed users are one of {{ allowed_users }}
+      tags:
+        - compliance

@@ -14,6 +14,7 @@ classifiers = [
 ]
 dependencies = [
     "ansible-scan-core@git+https://github.com/ansible/ansible-scan-core",
+    "ansible-rulebook==1.0.4",
 ]
 
 dynamic = ["version"]

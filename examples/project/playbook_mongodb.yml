@@ -1,0 +1,26 @@
+- hosts: localhost
+  tasks:
+    - name: Set variables
+      set_fact:
+        database_name: "not-allowed-db"
+        database_user: "abc"
+
+    - name: Touch a file
+      ansible.builtin.file:
+        path: /etc/foo.conf
+        state: touch
+
+    - name: Create mongodb user
+      community.mongodb.mongodb_user:
+        database: "{{ database_name }}"
+        name: "{{ database_user }}"
+        state: present
+        password: "test"
+        login_user: admin
+        login_password: admin
+
+    - name: Touch a file with root permission
+      become: True
+      ansible.builtin.file:
+        path: /etc/bar.conf
+        state: touch

@@ -1,0 +1,29 @@
+- PolicySet:
+    hosts:
+    - localhost
+    name: Check for using collection
+    policies:
+    - Policy:
+        actions:
+        - Action:
+            action: deny
+            action_args:
+              msg: The collection {{ input._agk.task.module_info.collection }} is
+                not allowed, allowed collection are one of {{ allowed_collections
+                }}
+        condition:
+          AllCondition:
+          - ItemNotInListExpression:
+              lhs:
+                String: input._agk.task.module_info.collection
+              rhs:
+                String: allowed_collections
+        enabled: true
+        name: Check for collection name
+        tags:
+        - compliance
+        target: task
+    vars:
+      allowed_collections:
+      - ansible.builtin
+      - amazon.aws
