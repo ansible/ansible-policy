@@ -77,6 +77,8 @@ default disabled
 policies.org.compliance   tag=compliance  enabled
 
 [source]
+# policies.community.mongodb = policies.community_mongodb:0.0.1     # collection policy (ansible-galaxy)
+# policies.community.mongodb = examples/policies-community_mongodb-0.0.1.tar.gz   # collection policy (local tarball)
 policies.org.compliance    = examples/org_wide_policies/compliance    # org-wide compliance policy
 ```
 
