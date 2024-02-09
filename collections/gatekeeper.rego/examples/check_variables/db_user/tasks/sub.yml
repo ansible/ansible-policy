@@ -1,3 +1,0 @@
-- name: "show a debug message"
-  debug:
-    msg: "test"

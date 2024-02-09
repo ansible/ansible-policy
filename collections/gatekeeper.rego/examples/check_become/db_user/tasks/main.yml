@@ -1,2 +1,0 @@
-- name: include sub.yml
-  include_tasks: sub.yml
