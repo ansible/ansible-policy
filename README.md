@@ -84,7 +84,7 @@ policies.org.compliance    = examples/org_wide_policies/compliance    # org-wide
 
 `source` field is a list of module packages and their source like ansible-galaxy or local directory. ansible-gatekeeper installs policies based on this configuration.
 
-The example above is configured to enable the follwoing 3 `rego`` policies, which we generated in step 4.
+The example above is configured to enable the follwoing 3 `rego` policies, which we generated in **step 4**.
 - [check_package_policy](./examples/org_wide_policies/compliance/policies/Check_for_package_name.rego)
 - [check_collection_policy](./examples/org_wide_policies/compliance/policies/Check_for_collection_name.rego)
 - [check_become_policy](./examples/org_wide_policies/compliance/policies/Check_for_using_become_in_task.rego)
