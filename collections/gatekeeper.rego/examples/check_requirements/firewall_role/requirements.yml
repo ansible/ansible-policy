@@ -1,8 +1,0 @@
-collections:
-  - name: community.general
-    version: ">=7.0.0"
-    source: https://galaxy.ansible.com
-
-  # - name: community.crypto
-  #   version: ">=2.16.0"
-  #   source: https://galaxy.ansible.com
