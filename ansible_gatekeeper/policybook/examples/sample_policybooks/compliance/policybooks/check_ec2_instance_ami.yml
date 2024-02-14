@@ -1,4 +1,6 @@
-# package-example.yml
+### check AMI policy ###
+# This policybook restricts amazon rds instances with unapproved AMIs.
+# If a task using amazon.aws.rds_instance uses the unapproved image, the violation will be detected.
 ---
 - name: Restrict instances with unapproved AMIs
   hosts: localhost 

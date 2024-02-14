@@ -1,4 +1,6 @@
-# package-example.yml
+### check non-fqcn policy ###
+# This policybook check if module is written in fqcn.
+# If a module is non-fqcn, a violation will be detected.
 ---
 - name: Check for non-fqcn module
   hosts: localhost 

@@ -1,4 +1,6 @@
-# package-example.yml
+### check EC2 usage policy ###
+# This policybook prohibit EC2 instances without a VPC.
+# If a task using amazon.aws.ec2_instance module does not have vpc_subnet_id option, the violation will be detected.
 ---
 - name: Prohibit EC2 instances without a VPC
   hosts: localhost 

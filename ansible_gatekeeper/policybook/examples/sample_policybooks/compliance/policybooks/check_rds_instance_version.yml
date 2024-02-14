@@ -1,4 +1,6 @@
-# package-example.yml
+### check rds_instance version policy ###
+# This policybook prohibit using unapproved RDS instance version.
+# If a task using amazon.aws.rds_instance uses unapproved engine_version, a violation will be detected.
 ---
 - name: Check for rds_instance version
   hosts: localhost 

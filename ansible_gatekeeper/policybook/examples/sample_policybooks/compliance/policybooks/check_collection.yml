@@ -1,4 +1,6 @@
-# package-example.yml
+### check collection policy ###
+# This policybook checks that only allowed collections are being used.
+# If a task uses a collection that is not in allowed_collections, the violation will be detected.
 ---
 - name: Check for using collection
   hosts: localhost

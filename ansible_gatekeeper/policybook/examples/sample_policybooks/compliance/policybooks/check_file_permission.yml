@@ -1,4 +1,7 @@
-# package-example.yml
+### check read-only permission policy ###
+# This policybook ensures that files are protected against unauthorized modification or deletion.
+# If the mode option for a task using the ansible.built-in.file module is not 444, a violation will be detected.
+
 ---
 - name: Check for file permission
   hosts: localhost 

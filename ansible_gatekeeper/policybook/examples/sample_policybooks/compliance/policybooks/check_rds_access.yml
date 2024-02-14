@@ -1,4 +1,6 @@
-# package-example.yml
+### check instance access policy ###
+# This policybook prohibit publicly accessible RDS instances.
+# If the option publicly_accessible is set to true in a task using amazon.aws.rds_instance, a violation will be detected.
 ---
 - name: Prohibit publicly accessible RDS instances
   hosts: localhost 

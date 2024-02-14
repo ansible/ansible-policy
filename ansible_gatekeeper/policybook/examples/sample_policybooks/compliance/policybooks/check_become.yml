@@ -1,4 +1,5 @@
-# package-example.yml
+### check privilege escalation policy ###
+# This policybook check if become: true is used and check if only trusted user is used.
 ---
 - name: Check for privilage escalation
   hosts: localhost 
@@ -14,7 +15,7 @@
         - input.become == true and input lacks key become_user
       actions:
         - deny:
-            msg: privilage escalation is detected. allowed users are one of {{ allowed_users }}
+            msg: privilege escalation is detected. allowed users are one of {{ allowed_users }}
       tags:
         - compliance
     - name: Check for user name in play
@@ -25,6 +26,6 @@
         - input.become == true and input lacks key become_user
       actions:
         - deny:
-            msg: privilage escalation is detected. allowed users are one of {{ allowed_users }}
+            msg: privilege escalation is detected. allowed users are one of {{ allowed_users }}
       tags:
         - compliance

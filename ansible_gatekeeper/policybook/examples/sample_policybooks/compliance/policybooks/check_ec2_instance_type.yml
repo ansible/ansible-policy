@@ -1,4 +1,6 @@
-# package-example.yml
+### check EC2 usage policy ###
+# This policybook checks the usage of EC2.
+# If a task using amazon.aws.ec2_instance uses the unapproved instance_type, the violation will be detected.
 ---
 - name: Check for ec2_instance type
   hosts: localhost 

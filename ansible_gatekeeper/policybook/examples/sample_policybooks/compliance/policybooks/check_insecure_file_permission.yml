@@ -1,4 +1,6 @@
-# package-example.yml
+### check insecure file permission policy ###
+# This policybook prohibit using sticky bit as a file permission.
+# If the mode option for a task using the ansible.built-in.file module is 1777, a violation will be detected.
 ---
 - name: Check for insecure file permission
   hosts: localhost 
