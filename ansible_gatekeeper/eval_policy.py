@@ -40,48 +40,55 @@ def main():
         with open(output_path, "w") as ofile:
             ofile.write(json.dumps(results))
     else:
-        violation_found = False
-        total_tasks = len(results)
-        violation_count = 0
         term_width = os.get_terminal_size().columns
 
-        for i, result_per_task in enumerate(results):
-            task = result_per_task.get("task")
-            result_for_policies = result_per_task.get("result")
-            print(f"TASK [{task.name}] ".ljust(term_width, "*"), file=sys.stderr)
-            for policy_name, result in result_for_policies.items():
-                flag = ""
-                # disp_result = {k: v for k, v in result.items() if not k.startswith("_")}
-                # print(json.dumps(disp_result, indent=2), file=sys.stderr)
-                true_exists = any([v for k, v in result.items() if isinstance(v, bool)])
-                if true_exists:
-                    msg = "    [FAILURE] Policy violation detected!"
-                    flag = "NG"
-                    if sys.stdout.isatty():
-                        msg = f"\033[91m{msg}\033[00m"
-                        flag = f"\033[91m{flag}\033[00m"
-                    # print(msg, file=sys.stderr)
-                    violation_count += 1
-                    violation_found = True
-                else:
-                    msg = "    [SUCCESS] All policy checks passed!"
-                    flag = "OK"
-                    if sys.stdout.isatty():
-                        msg = f"\033[96m{msg}\033[00m"
-                        flag = f"\033[96m{flag}\033[00m"
-                    else:
+        for input_type in results:
+            violation_found = False
+            policy_found_for_this_type = False
+            violation_count = 0
+            results_per_type = results[input_type]
+            if not results_per_type:
+                continue
+            total_targets = len(results_per_type)
+            msg = ""
+            for i, result_per_target in enumerate(results_per_type):
+                type_str = input_type.upper()
+                input_object = result_per_target.get("object")
+                result_for_policies = result_per_target.get("result")
+                msg += f"{type_str} [{input_object.name}] ".ljust(term_width, "*") + "\n"
+                for policy_name, single_result in result_for_policies.items():
+                    is_target_type = single_result.get("is_target_type", False)
+                    if is_target_type:
+                        policy_found_for_this_type = True
+                    rego_out = single_result.get("rego_out", {})
+                    flag = ""
+                    # disp_result = {k: v for k, v in result.items() if not k.startswith("_")}
+                    # print(json.dumps(disp_result, indent=2), file=sys.stderr)
+                    true_exists = any([v for k, v in rego_out.items() if isinstance(v, bool)])
+                    if true_exists:
+                        flag = "NG"
+                        if sys.stdout.isatty():
+                            flag = f"\033[91m{flag}\033[00m"
                         # print(msg, file=sys.stderr)
-                        if runner_jobdata_str:
-                            print(runner_jobdata_str)
-                print("...", policy_name, flag, file=sys.stderr)
-            print("", file=sys.stderr)
-        print("---", file=sys.stderr)
-        msg = ""
-        if violation_count > 0:
-            msg = f"Summary: \033[91mThe {violation_count} tasks have violations!\033[00m (out of {total_tasks} tasks)"
-        else:
-            msg = f"Summary: \033[96mAll checks passed!\033[00m ({total_tasks} tasks)"
-        print(msg, file=sys.stderr)
+                        violation_count += 1
+                        violation_found = True
+                    else:
+                        flag = "OK"
+                        if sys.stdout.isatty():
+                            flag = f"\033[96m{flag}\033[00m"
+                        else:
+                            # print(msg, file=sys.stderr)
+                            if runner_jobdata_str:
+                                print(runner_jobdata_str)
+                    msg += f"... {policy_name} {flag}\n"
+                msg += "\n"
+            msg += "---\n"
+            if violation_count > 0:
+                msg += f"Summary: \033[91mThe {violation_count} {input_type}s have violations!\033[00m (out of {total_targets} {input_type}s)\n"
+            else:
+                msg += f"Summary: \033[96mAll checks passed!\033[00m ({total_targets} {input_type}s)\n"
+            if policy_found_for_this_type:
+                print(msg, file=sys.stderr)
         if violation_found:
             sys.exit(1)
 

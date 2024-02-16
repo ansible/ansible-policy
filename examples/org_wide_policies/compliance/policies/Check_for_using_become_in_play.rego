@@ -1,4 +1,4 @@
-package Check_for_using_become_in_task
+package Check_for_using_become_in_play
 
 
 import future.keywords.if
@@ -6,7 +6,7 @@ import future.keywords.in
 import data.ansible_gatekeeper.resolve_var
 
 
-__target__ = "task"
+__target__ = "play"
 __tags__ = ["compliance"]
 
 
@@ -29,14 +29,14 @@ check_item_not_in_list(lhs_list, rhs_list) = true if {
 } else = false
 
 
-Check_for_using_become_in_task_0 = true if {
+Check_for_using_become_in_play_0 = true if {
     input.become
     lhs_list = to_list(input.become_user)
     check_item_not_in_list(lhs_list, allowed_users)
 }
 
 
-Check_for_using_become_in_task_0 = true if {
+Check_for_using_become_in_play_0 = true if {
     input.become
     input
     input_keys := [key | input[key]; key == "become_user"]
@@ -45,6 +45,6 @@ Check_for_using_become_in_task_0 = true if {
 
 
 deny = true if {
-    Check_for_using_become_in_task_0
+    Check_for_using_become_in_play_0
     print(sprintf("privilage escalation is detected. allowed users are one of %v", [allowed_users]))
 } else = false

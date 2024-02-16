@@ -2,6 +2,7 @@
 - name: Provision EC2 instance and set up MySQL
   hosts: localhost
   gather_facts: false
+  become: True
   vars:
     region: "your_aws_region"
     instance_type: "t2.micro"

@@ -26,7 +26,8 @@ $ cd ansible-gatekeeper
 $ pip install -e .
 ```
 
-<!-- ### 4. iInstall `gatekeeper.rego` modules
+<!--
+### 4. Install `gatekeeper.rego` modules
 
 ```bash
 $ ansible-galaxy collection install collections/gatekeeper.rego --force
@@ -37,7 +38,9 @@ Starting collection install process
 Installing 'gatekeeper.rego:0.0.1' to '/Users/user/.ansible/collections/ansible_collections/gatekeeper/rego'
 Created collection for gatekeeper.rego:0.0.1 at /Users/user/.ansible/collections/ansible_collections/gatekeeper/rego
 gatekeeper.rego:0.0.1 was installed successfully
-``` -->
+```
+-->
+
 ### 4. Generate Rego policies from Policybook
 As examples, the following policybooks can be found in the `examples/org_wide_policies` directory. 
 

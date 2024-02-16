@@ -23,6 +23,7 @@ from ansible_gatekeeper.utils import (
     validate_opa_installation,
     eval_opa_policy,
     match_target_module,
+    match_target_type,
 )
 
 
@@ -302,9 +303,9 @@ class PolicyEvaluator(object):
 
         runner_jobdata_str = None
         if eval_type == EvalTypeJobdata:
-            input_data_list, runner_jobdata_str = load_input_from_jobdata(jobdata_path=jobdata_path)
+            input_data_dict, runner_jobdata_str = load_input_from_jobdata(jobdata_path=jobdata_path)
         elif eval_type == EvalTypeProject:
-            input_data_list = load_input_from_project_dir(project_dir=project_dir)
+            input_data_dict = load_input_from_project_dir(project_dir=project_dir)
         else:
             raise ValueError(f"eval_type `{eval_type}` is not supported")
 
@@ -313,31 +314,56 @@ class PolicyEvaluator(object):
             target_module = detect_target_module_pattern(policy_path=policy_path)
             target_modules.append(target_module)
 
-        # embed `task.module_fqcn` to input_data by using external_data
-        input_data_all_tasks = []
-        for input_data_for_task in input_data_list:
-            input_data_for_task = process_input_data_with_external_data("task", input_data_for_task, external_data_path)
-            input_data_all_tasks.append(input_data_for_task)
+        if "task" in input_data_dict:
+            # embed `task.module_fqcn` to input_data by using external_data
+            input_data_all_tasks = []
+            for input_data_for_task in input_data_dict["task"]:
+                input_data_for_task = process_input_data_with_external_data("task", input_data_for_task, external_data_path)
+                input_data_all_tasks.append(input_data_for_task)
+            if input_data_all_tasks:
+                input_data_dict["task"] = input_data_all_tasks
 
-        results = []
-        for input_data_for_task in input_data_all_tasks:
-            task = input_data_for_task.task
-            result_per_task = {}
-            for policy_path in policy_files:
-                policy_name = get_rego_main_package_name(rego_path=policy_path)
-                result = self.eval_single_policy(rego_path=policy_path, input_data=input_data_for_task, external_data_path=external_data_path)
-                result_per_task[policy_name] = result
-            results.append({"task": task, "result": result_per_task})
+        results = {}
+        for input_type in input_data_dict:
+            input_data_per_type = input_data_dict[input_type]
+            for single_input_data in input_data_per_type:
+                result_per_input = {}
+                for policy_path in policy_files:
+                    policy_name = get_rego_main_package_name(rego_path=policy_path)
+                    is_target_type, rego_out = self.eval_single_policy(
+                        rego_path=policy_path,
+                        input_type=input_type,
+                        input_data=single_input_data,
+                        external_data_path=external_data_path,
+                    )
+                    result_per_input[policy_name] = {
+                        "rego_out": rego_out,
+                        "is_target_type": is_target_type,
+                    }
+
+                if input_type not in results:
+                    results[input_type] = []
+                results[input_type].append(
+                    {
+                        "policy_name": policy_name,
+                        "type": input_type,
+                        "object": single_input_data.object,
+                        "result": result_per_input,
+                    }
+                )
         return results, runner_jobdata_str
 
-    def eval_single_policy(self, rego_path: str, input_data: PolicyInput, external_data_path: str) -> str:
-        task = input_data.task
-        if not match_target_module(task.module_fqcn, rego_path):
-            return {}
+    def eval_single_policy(self, rego_path: str, input_type: str, input_data: PolicyInput, external_data_path: str) -> tuple[bool, str]:
+        if not match_target_type(target_type=input_type, rego_path=rego_path):
+            return False, {}
+        if input_type == "task":
+            task = input_data.task
+            if not match_target_module(task.module_fqcn, rego_path):
+                return True, {}
         input_data_str = input_data.to_json()
         result = eval_opa_policy(
             rego_path=rego_path,
             input_data=input_data_str,
             external_data_path=external_data_path,
         )
-        return result
+        return True, result
