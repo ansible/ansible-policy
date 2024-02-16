@@ -1,0 +1,48 @@
+- PolicySet:
+    hosts:
+    - localhost
+    name: Check for privilage escalation
+    policies:
+    - Policy:
+        actions:
+        - Action:
+            action: deny
+            action_args:
+              msg: privilage escalation is detected. allowed users are one of {{ allowed_users
+                }}
+        condition:
+          AnyCondition:
+          - AndExpression:
+              lhs:
+                EqualsExpression:
+                  lhs:
+                    String: input.become
+                  rhs:
+                    Boolean: true
+              rhs:
+                ItemNotInListExpression:
+                  lhs:
+                    String: input.become_user
+                  rhs:
+                    String: allowed_users
+          - AndExpression:
+              lhs:
+                EqualsExpression:
+                  lhs:
+                    String: input.become
+                  rhs:
+                    Boolean: true
+              rhs:
+                KeyNotInDictExpression:
+                  lhs:
+                    String: input
+                  rhs:
+                    String: become_user
+        enabled: true
+        name: Check for using become in play
+        tags:
+        - compliance
+        target: play
+    vars:
+      allowed_users:
+      - trusted_user

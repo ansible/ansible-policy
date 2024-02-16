@@ -10,6 +10,9 @@ import logging
 import subprocess
 
 
+default_target_type = "task"
+
+
 def init_logger(name: str, level: str):
     log_level_map = {
         "error": logging.ERROR,
@@ -249,6 +252,23 @@ def detect_target_module_pattern(policy_path: str):
     return pattern
 
 
+def detect_target_type_pattern(policy_path: str):
+    var_name = "__target__"
+    pattern = None
+    with open(policy_path, "r") as file:
+        for line in file:
+            if var_name in line:
+                parts = [p.strip() for p in line.split("=")]
+                if len(parts) != 2:
+                    continue
+                if parts[0] == var_name:
+                    pattern = parts[1].strip('"').strip("'")
+                    break
+    if not pattern:
+        pattern = default_target_type
+    return pattern
+
+
 def install_galaxy_target(target, target_type, output_dir, source_repository="", target_version=""):
     server_option = ""
     if source_repository:
@@ -340,3 +360,8 @@ def get_tags_from_rego_policy_file(policy_path: str):
 def match_target_module(module_fqcn: str, rego_path: str):
     module_pattern = detect_target_module_pattern(policy_path=rego_path)
     return match_str_expression(module_pattern, module_fqcn)
+
+
+def match_target_type(target_type: str, rego_path: str):
+    type_pattern = detect_target_type_pattern(policy_path=rego_path)
+    return match_str_expression(type_pattern, target_type)

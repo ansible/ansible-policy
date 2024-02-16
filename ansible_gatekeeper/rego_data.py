@@ -20,6 +20,7 @@ from ansible_scan_core.models import (
     BecomeInfo,
     File as CoreFile,
     Task as CoreTask,
+    Play as CorePlay,
     TaskFile as CoreTaskFile,
     Role as CoreRole,
     Playbook as CorePlaybook,
@@ -32,6 +33,8 @@ scanner = AnsibleScanner(silent=True)
 
 
 InputTypeTask = "task"
+InputTypePlay = "play"
+InputTypeRole = "role"
 InputTypeProject = "project"
 
 
@@ -96,7 +99,7 @@ def load_input_from_project_dir(project_dir: str = ""):
 
 
 def scan_project(
-    input_type: str, yaml_str: str = "", project_dir: str = "", metadata: dict = None, runtime_data: RuntimeData = None, output_dir: str = ""
+    input_types: List[str], yaml_str: str = "", project_dir: str = "", metadata: dict = None, runtime_data: RuntimeData = None, output_dir: str = ""
 ):
     _metadata = {}
     if metadata:
@@ -119,10 +122,22 @@ def scan_project(
     if not project:
         raise ValueError("failed to scan the target project; project is None")
 
-    if input_type == InputTypeProject:
-        policy_input = PolicyInput.from_scan_result(project=project, runtime_data=runtime_data)
-    elif input_type == InputTypeTask:
-        policy_input = PolicyInput.from_scan_result(project=project, runtime_data=runtime_data, input_type=InputTypeTask)
+    base_input_list = PolicyInput.from_scan_result(
+        project=project,
+        runtime_data=runtime_data,
+        input_type=InputTypeProject,
+    )
+    base_input = base_input_list[0]
+
+    policy_input = {}
+    for input_type in input_types:
+        policy_input_per_type = PolicyInput.from_scan_result(
+            project=project,
+            runtime_data=runtime_data,
+            input_type=input_type,
+            base_input=base_input,
+        )
+        policy_input[input_type] = policy_input_per_type
 
     if not policy_input:
         raise ValueError("failed to scan the target project; policy_input is None")
@@ -217,6 +232,48 @@ class Task(object):
 
 
 @dataclass
+class Play(object):
+    type: str = "play"
+    name: str = ""
+    filepath: str = ""
+    index: int = -1
+    key: str = ""
+    local_key: str = ""
+
+    role: str = ""
+    collection: str = ""
+    import_module: str = ""
+    import_playbook: str = ""
+    pre_tasks: list = field(default_factory=list)
+    tasks: list = field(default_factory=list)
+    post_tasks: list = field(default_factory=list)
+    handlers: list = field(default_factory=list)
+    # not actual Role, but RoleInPlay defined in this playbook
+    roles: list = field(default_factory=list)
+    module_defaults: dict = field(default_factory=dict)
+    options: dict = field(default_factory=dict)
+    collections_in_play: list = field(default_factory=list)
+    become: BecomeInfo = None
+    variables: dict = field(default_factory=dict)
+    vars_files: list = field(default_factory=list)
+
+    task_loading: dict = field(default_factory=dict)
+
+    @classmethod
+    def from_object(cls, obj: CorePlay, proj: ScanResult):
+        new_obj = cls()
+        if hasattr(obj, "__dict__"):
+            for k, v in obj.__dict__.items():
+                if hasattr(new_obj, k):
+                    setattr(new_obj, k, v)
+
+        tasks = proj.get_tasks_in_play(play=obj)
+        new_obj.tasks = [Task.from_object(task, proj) for task in tasks]
+
+        return new_obj
+
+
+@dataclass
 class Playbook(object):
     type: str = "playbook"
     key: str = ""
@@ -225,22 +282,28 @@ class Playbook(object):
     yaml_lines: str = ""
     role: str = ""
     collection: str = ""
-    plays: list = field(default_factory=list)
+    play_keys: list = field(default_factory=list)
     variables: dict = field(default_factory=dict)
     options: dict = field(default_factory=dict)
 
     tasks: List[Task] = field(default_factory=list)
+    plays: List[Play] = field(default_factory=list)
 
     @classmethod
     def from_object(cls, obj: CorePlaybook, proj: ScanResult):
         new_obj = cls()
         if hasattr(obj, "__dict__"):
             for k, v in obj.__dict__.items():
-                if hasattr(new_obj, k):
+                if k == "plays":
+                    setattr(new_obj, "play_keys", v)
+                elif hasattr(new_obj, k):
                     setattr(new_obj, k, v)
 
         tasks = proj.get_tasks_in_playbook(playbook=obj)
         new_obj.tasks = [Task.from_object(task, proj) for task in tasks]
+
+        plays = proj.get_plays(playbook=obj)
+        new_obj.plays = [Play.from_object(play, proj) for play in plays]
 
         return new_obj
 
@@ -353,6 +416,7 @@ class Project(object):
 
 @dataclass
 class PolicyInput(object):
+    type: str = ""
     source: dict = field(default_factory=dict)
     project: any = None
     playbooks: dict = field(default_factory=dict)
@@ -360,6 +424,8 @@ class PolicyInput(object):
     roles: dict = field(default_factory=dict)
 
     task: Task = None
+    play: Play = None
+    role: Role = None
 
     vars_files: dict = field(default_factory=dict)
 
@@ -373,10 +439,11 @@ class PolicyInput(object):
     # others?
 
     @staticmethod
-    def from_scan_result(project: ScanResult, runtime_data: RuntimeData = None, input_type: str = ""):
+    def from_scan_result(project: ScanResult, runtime_data: RuntimeData = None, input_type: str = "", base_input=None):
         if input_type == InputTypeTask:
-            base_input_list = PolicyInput.from_scan_result(project=project, runtime_data=runtime_data)
-            base_input = base_input_list[0]
+            if not base_input:
+                base_input_list = PolicyInput.from_scan_result(project=project, runtime_data=runtime_data)
+                base_input = base_input_list[0]
             tasks = []
             for playbook in base_input.playbooks.values():
                 tasks.extend(playbook.tasks)
@@ -388,11 +455,41 @@ class PolicyInput(object):
             p_input_list = []
             for task in tasks:
                 p_input = copy.deepcopy(base_input)
+                p_input.type = InputTypeTask
                 p_input.task = task
+                p_input_list.append(p_input)
+            return p_input_list
+        elif input_type == InputTypePlay:
+            if not base_input:
+                base_input_list = PolicyInput.from_scan_result(project=project, runtime_data=runtime_data)
+                base_input = base_input_list[0]
+            plays = []
+            for playbook in base_input.playbooks.values():
+                plays.extend(playbook.plays)
+            p_input_list = []
+            for play in plays:
+                p_input = copy.deepcopy(base_input)
+                p_input.type = InputTypePlay
+                p_input.play = play
+                p_input_list.append(p_input)
+            return p_input_list
+        elif input_type == InputTypeRole:
+            if not base_input:
+                base_input_list = PolicyInput.from_scan_result(project=project, runtime_data=runtime_data)
+                base_input = base_input_list[0]
+            roles = []
+            for role in base_input.roles.values():
+                roles.extend(role)
+            p_input_list = []
+            for role in roles:
+                p_input = copy.deepcopy(base_input)
+                p_input.type = InputTypeRole
+                p_input.role = role
                 p_input_list.append(p_input)
             return p_input_list
         else:
             p_input = PolicyInput()
+            p_input.type = InputTypeProject
             p_input.source = project.source
             p_input.playbooks = {playbook.filepath: Playbook.from_object(obj=playbook, proj=project) for playbook in project.playbooks}
             p_input.taskfiles = {taskfile.filepath: TaskFile.from_object(obj=taskfile, proj=project) for taskfile in project.taskfiles}
@@ -430,9 +527,12 @@ class PolicyInput(object):
     def to_json(self, **kwargs):
         data = {}
         try:
-            task_data_block = yaml.safe_load(self.task.yaml_lines)
-            if task_data_block:
-                data = task_data_block[0]
+            if self.type == InputTypeTask:
+                task_data_block = yaml.safe_load(self.task.yaml_lines)
+                if task_data_block:
+                    data = task_data_block[0]
+            elif self.type == InputTypePlay:
+                data = self.play.options
         except Exception:
             pass
         data["_agk"] = self
@@ -451,6 +551,11 @@ class PolicyInput(object):
         if not isinstance(p_input, PolicyInput):
             raise ValueError(f"a decoded object is not a PolicyInput, but {type(p_input)}")
         return p_input
+
+    @property
+    def object(self):
+        obj = getattr(self, self.type, None)
+        return obj
 
 
 def process_input_data_with_external_data(input_type: str, input_data: PolicyInput, external_data_path: str):
@@ -488,15 +593,24 @@ def make_policy_input(target_path: str, metadata: dict = {}) -> List[PolicyInput
 
     runtime_data = RuntimeData.load(dir=target_path)
 
-    policy_input = None
+    kwargs = dict(
+        input_types=[
+            InputTypeTask,
+            InputTypePlay,
+            InputTypeRole,
+        ],
+        metadata=metadata,
+        runtime_data=runtime_data,
+    )
     if fpath:
         yaml_str = ""
         with open(fpath, "r") as file:
             yaml_str = file.read()
-        policy_input = scan_project(input_type=InputTypeTask, yaml_str=yaml_str, metadata=metadata, runtime_data=runtime_data)
+        kwargs["yaml_str"] = yaml_str
     elif dpath:
-        policy_input = scan_project(input_type=InputTypeTask, project_dir=dpath, metadata=metadata, runtime_data=runtime_data)
+        kwargs["project_dir"] = dpath
     else:
         raise ValueError(f"`{target_path}` does not exist")
+    policy_input = scan_project(**kwargs)
 
     return policy_input
