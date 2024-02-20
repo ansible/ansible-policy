@@ -3,6 +3,8 @@ import sys
 import re
 import base64
 import json
+import yaml
+import Levenshtein
 import tarfile
 import zipfile
 import tempfile
@@ -365,3 +367,353 @@ def match_target_module(module_fqcn: str, rego_path: str):
 def match_target_type(target_type: str, rego_path: str):
     type_pattern = detect_target_type_pattern(policy_path=rego_path)
     return match_str_expression(type_pattern, target_type)
+
+
+def find_task_line_number(
+    yaml_body: str = "",
+    task_name: str = "",
+    module_name: str = "",
+    module_options: dict = None,
+    task_options: dict = None,
+    previous_task_line: int = -1,
+):
+    if not task_name and not module_options:
+        return None, None
+
+    lines = []
+    if yaml_body:
+        lines = yaml_body.splitlines()
+
+    # search candidates that match either of the following conditions
+    #   - task name is included in the line
+    #   - if module name is included,
+    #       - if module option is string, it is included
+    #       - if module option is dict, at least one key is included
+    candidate_line_nums = []
+    for i, line in enumerate(lines):
+        # skip lines until `previous_task_line` if provided
+        if previous_task_line > 0:
+            if i <= previous_task_line - 1:
+                continue
+
+        if task_name:
+            if task_name in line:
+                candidate_line_nums.append(i)
+        elif "{}:".format(module_name) in line:
+            if isinstance(module_options, str):
+                if module_options in line:
+                    candidate_line_nums.append(i)
+            elif isinstance(module_options, dict):
+                option_matched = False
+                for key in module_options:
+                    if i + 1 < len(lines) and "{}:".format(key) in lines[i + 1]:
+                        option_matched = True
+                        break
+                if option_matched:
+                    candidate_line_nums.append(i)
+    if not candidate_line_nums:
+        return None, None
+
+    # get task yaml_lines for each candidate
+    candidate_blocks = []
+    for candidate_line_num in candidate_line_nums:
+        _yaml_lines, _line_num_in_file = _find_task_block(lines, candidate_line_num)
+        if _yaml_lines and _line_num_in_file:
+            candidate_blocks.append((_yaml_lines, _line_num_in_file))
+
+    if not candidate_blocks:
+        return None, None
+
+    reconstructed_yaml = ""
+    best_yaml_lines = ""
+    best_line_num_in_file = []
+    sorted_candidates = []
+    if len(candidate_blocks) == 1:
+        best_yaml_lines = candidate_blocks[0][0]
+        best_line_num_in_file = candidate_blocks[0][1]
+    else:
+        # reconstruct yaml from the task data to calculate similarity (edit distance) later
+        reconstructed_data = [{}]
+        if task_name:
+            reconstructed_data[0]["name"] = task_name
+        reconstructed_data[0][module_name] = module_options
+        if isinstance(task_options, dict):
+            for key, val in task_options.items():
+                if key not in reconstructed_data[0]:
+                    reconstructed_data[0][key] = val
+
+        try:
+            reconstructed_yaml = yaml.safe_dump(reconstructed_data)
+        except Exception:
+            pass
+
+        # find best match by edit distance
+        if reconstructed_yaml:
+
+            def remove_comment_lines(s):
+                lines = s.splitlines()
+                updated = []
+                for line in lines:
+                    if line.strip().startswith("#"):
+                        continue
+                    updated.append(line)
+                return "\n".join(updated)
+
+            def calc_dist(s1, s2):
+                us1 = remove_comment_lines(s1)
+                us2 = remove_comment_lines(s2)
+                dist = Levenshtein.distance(us1, us2)
+                return dist
+
+            r = reconstructed_yaml
+            sorted_candidates = sorted(candidate_blocks, key=lambda x: calc_dist(r, x[0]))
+            best_yaml_lines = sorted_candidates[0][0]
+            best_line_num_in_file = sorted_candidates[0][1]
+        else:
+            # give up here if yaml reconstruction failed
+            # use the first candidate
+            best_yaml_lines = candidate_blocks[0][0]
+            best_line_num_in_file = candidate_blocks[0][1]
+
+    yaml_lines = best_yaml_lines
+    line_num_in_file = best_line_num_in_file
+    return yaml_lines, line_num_in_file
+
+
+def _find_task_block(yaml_lines: list, start_line_num: int):
+    if not yaml_lines:
+        return None, None
+
+    if start_line_num < 0:
+        return None, None
+
+    lines = yaml_lines
+    found_line = lines[start_line_num]
+    is_top_of_block = found_line.replace(" ", "").startswith("-")
+    begin_line_num = start_line_num
+    indent_of_block = -1
+    if is_top_of_block:
+        indent_of_block = len(found_line.split("-")[0])
+    else:
+        found = False
+        found_line = ""
+        _indent_of_block = -1
+        parts = found_line.split(" ")
+        for i, p in enumerate(parts):
+            if p != "":
+                break
+            _indent_of_block = i + 1
+        for i in range(len(lines)):
+            index = begin_line_num
+            _line = lines[index]
+            is_top_of_block = _line.replace(" ", "").startswith("-")
+            if is_top_of_block:
+                _indent = len(_line.split("-")[0])
+                if _indent < _indent_of_block:
+                    found = True
+                    found_line = _line
+                    break
+            begin_line_num -= 1
+            if begin_line_num < 0:
+                break
+        if not found:
+            return None, None
+        indent_of_block = len(found_line.split("-")[0])
+    index = begin_line_num + 1
+    end_found = False
+    end_line_num = -1
+    for i in range(len(lines)):
+        if index >= len(lines):
+            break
+        _line = lines[index]
+        is_top_of_block = _line.replace(" ", "").startswith("-")
+        if is_top_of_block:
+            _indent = len(_line.split("-")[0])
+            if _indent <= indent_of_block:
+                end_found = True
+                end_line_num = index - 1
+                break
+        index += 1
+        if index >= len(lines):
+            end_found = True
+            end_line_num = index
+            break
+    if not end_found:
+        return None, None
+    if begin_line_num < 0 or end_line_num > len(lines) or begin_line_num > end_line_num:
+        return None, None
+
+    yaml_lines = "\n".join(lines[begin_line_num : end_line_num + 1])
+    line_num_in_file = [begin_line_num + 1, end_line_num + 1]
+    return yaml_lines, line_num_in_file
+
+
+# TODO: use task names and module names for searching
+# NOTE: currently `tasks` in a Play object is composed of pre_tasks, tasks and post_tasks
+def find_play_line_number(
+    yaml_body: str = "",
+    play_name: str = "",
+    play_options: dict = None,
+    task_names: list = None,
+    module_names: list = None,
+    previous_play_line: int = -1,
+):
+    if not play_name and not play_options and not task_names and not module_names:
+        return None, None
+
+    lines = []
+    if yaml_body:
+        lines = yaml_body.splitlines()
+
+    # search candidates that match either of the following conditions
+    #   - task name is included in the line
+    #   - if module name is included,
+    #       - if module option is string, it is included
+    #       - if module option is dict, at least one key is included
+    candidate_line_nums = []
+    for i, line in enumerate(lines):
+        # skip lines until `previous_task_line` if provided
+        if previous_play_line > 0:
+            if i <= previous_play_line - 1:
+                continue
+
+        if play_name:
+            if play_name in line:
+                candidate_line_nums.append(i)
+        elif "hosts:":
+            candidate_line_nums.append(i)
+    if not candidate_line_nums:
+        return None, None
+
+    # get play yaml_lines for each candidate
+    candidate_blocks = []
+    for candidate_line_num in candidate_line_nums:
+        _yaml_lines, _line_num_in_file = _find_play_block(lines, candidate_line_num)
+        if _yaml_lines and _line_num_in_file:
+            candidate_blocks.append((_yaml_lines, _line_num_in_file))
+
+    if not candidate_blocks:
+        return None, None
+
+    reconstructed_yaml = ""
+    best_yaml_lines = ""
+    best_line_num_in_file = []
+    sorted_candidates = []
+    if len(candidate_blocks) == 1:
+        best_yaml_lines = candidate_blocks[0][0]
+        best_line_num_in_file = candidate_blocks[0][1]
+    else:
+        # reconstruct yaml from the play data to calculate similarity (edit distance) later
+        reconstructed_data = [{}]
+        if play_name:
+            reconstructed_data[0]["name"] = play_name
+        if isinstance(play_options, dict):
+            for key, val in play_options.items():
+                if key not in reconstructed_data[0]:
+                    reconstructed_data[0][key] = val
+
+        try:
+            reconstructed_yaml = yaml.safe_dump(reconstructed_data)
+        except Exception:
+            pass
+
+        # find best match by edit distance
+        if reconstructed_yaml:
+
+            def remove_comment_lines(s):
+                lines = s.splitlines()
+                updated = []
+                for line in lines:
+                    if line.strip().startswith("#"):
+                        continue
+                    updated.append(line)
+                return "\n".join(updated)
+
+            def calc_dist(s1, s2):
+                us1 = remove_comment_lines(s1)
+                us2 = remove_comment_lines(s2)
+                dist = Levenshtein.distance(us1, us2)
+                return dist
+
+            r = reconstructed_yaml
+            sorted_candidates = sorted(candidate_blocks, key=lambda x: calc_dist(r, x[0]))
+            best_yaml_lines = sorted_candidates[0][0]
+            best_line_num_in_file = sorted_candidates[0][1]
+        else:
+            # give up here if yaml reconstruction failed
+            # use the first candidate
+            best_yaml_lines = candidate_blocks[0][0]
+            best_line_num_in_file = candidate_blocks[0][1]
+
+    yaml_lines = best_yaml_lines
+    line_num_in_file = best_line_num_in_file
+    return yaml_lines, line_num_in_file
+
+
+def _find_play_block(yaml_lines: list, start_line_num: int):
+    if not yaml_lines:
+        return None, None
+
+    if start_line_num < 0:
+        return None, None
+
+    lines = yaml_lines
+    found_line = lines[start_line_num]
+    is_top_of_block = found_line.replace(" ", "").startswith("-")
+    begin_line_num = start_line_num
+    indent_of_block = -1
+    if is_top_of_block:
+        indent_of_block = len(found_line.split("-")[0])
+    else:
+        found = False
+        found_line = ""
+        _indent_of_block = -1
+        parts = found_line.split(" ")
+        for i, p in enumerate(parts):
+            if p != "":
+                break
+            _indent_of_block = i + 1
+        for i in range(len(lines)):
+            index = begin_line_num
+            _line = lines[index]
+            is_top_of_block = _line.replace(" ", "").startswith("-")
+            is_tasks_block = _line.split("#")[0].strip() in ["tasks:", "pre_tasks:", "post_tasks:"]
+            if is_top_of_block and not is_tasks_block:
+                _indent = len(_line.split("-")[0])
+                if _indent < _indent_of_block:
+                    found = True
+                    found_line = _line
+                    break
+            begin_line_num -= 1
+            if begin_line_num < 0:
+                break
+        if not found:
+            return None, None
+        indent_of_block = len(found_line.split("-")[0])
+    index = begin_line_num + 1
+    end_found = False
+    end_line_num = -1
+    for i in range(len(lines)):
+        if index >= len(lines):
+            break
+        _line = lines[index]
+        is_top_of_block = _line.replace(" ", "").startswith("-")
+        if is_top_of_block:
+            _indent = len(_line.split("-")[0])
+            if _indent <= indent_of_block:
+                end_found = True
+                end_line_num = index - 1
+                break
+        index += 1
+        if index >= len(lines):
+            end_found = True
+            end_line_num = index
+            break
+    if not end_found:
+        return None, None
+    if begin_line_num < 0 or end_line_num > len(lines) or begin_line_num > end_line_num:
+        return None, None
+
+    yaml_lines = "\n".join(lines[begin_line_num : end_line_num + 1])
+    line_num_in_file = [begin_line_num + 1, end_line_num + 1]
+    return yaml_lines, line_num_in_file

@@ -1,8 +1,8 @@
 import os
 import sys
-import json
+import jsonpickle
 import argparse
-from ansible_gatekeeper.models import PolicyEvaluator
+from ansible_gatekeeper.models import PolicyEvaluator, CodeBlock
 
 
 def main():
@@ -38,7 +38,7 @@ def main():
 
     if output_path:
         with open(output_path, "w") as ofile:
-            ofile.write(json.dumps(results))
+            ofile.write(jsonpickle.encode(results, make_refs=False, separators=(",", ":")))
     else:
         term_width = os.get_terminal_size().columns
 
@@ -55,7 +55,10 @@ def main():
                 type_str = input_type.upper()
                 input_object = result_per_target.get("object")
                 result_for_policies = result_per_target.get("result")
-                msg += f"{type_str} [{input_object.name}] ".ljust(term_width, "*") + "\n"
+                filepath = result_per_target.get("file", {}).get("path")
+                lines_dict = result_per_target.get("file", {}).get("lines")
+                lines = CodeBlock.dict2str(lines_dict)
+                msg += f"{type_str} [{input_object.name}] {filepath} {lines} ".ljust(term_width, "*") + "\n"
                 for policy_name, single_result in result_for_policies.items():
                     is_target_type = single_result.get("is_target_type", False)
                     if is_target_type:

@@ -4,9 +4,11 @@ import glob
 import tempfile
 import shutil
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Union
 
 from ansible_gatekeeper.rego_data import (
+    Task,
+    Play,
     PolicyInput,
     load_input_from_jobdata,
     load_input_from_project_dir,
@@ -24,6 +26,8 @@ from ansible_gatekeeper.utils import (
     eval_opa_policy,
     match_target_module,
     match_target_type,
+    find_task_line_number,
+    find_play_line_number,
 )
 
 
@@ -235,6 +239,84 @@ class Config(object):
 
 
 @dataclass
+class CodeBlock(object):
+    begin: int = None
+    end: int = None
+
+    @staticmethod
+    def dict2str(line_dict: dict):
+        block = CodeBlock.from_dict(line_dict=line_dict)
+        return str(block)
+
+    @classmethod
+    def from_str(cls, line_str: str):
+        if line_str.startswith("L") and "-" in line_str:
+            parts = line_str.replace("L", "").split("-")
+            block = cls()
+            block.begin = parts[0]
+            block.end = parts[1]
+            return block
+
+        raise ValueError(f"failed to construct a CodeBlock from the string `{line_str}`")
+
+    @classmethod
+    def from_dict(cls, line_dict: dict):
+        if "begin" in line_dict and "end" in line_dict:
+            block = cls()
+            block.begin = line_dict["begin"]
+            block.end = line_dict["end"]
+            return block
+
+        raise ValueError(f"failed to construct a CodeBlock from the dict `{line_dict}`")
+
+    def __repr__(self):
+        if not isinstance(self.begin, int):
+            raise ValueError("`begin` is not found for this code block")
+
+        if not isinstance(self.end, int):
+            raise ValueError("`end` is not found for this code block")
+
+        return f"L{self.begin}-{self.end}"
+
+    def to_dict(self):
+        return {"begin": self.begin, "end": self.end}
+
+
+@dataclass
+class LineIdentifier(object):
+    def find_block(self, body: str, obj: Union[Task, Play]) -> CodeBlock:
+        if not body:
+            return None
+
+        if not isinstance(obj, (Task, Play)):
+            raise TypeError(f"find a code block for {type(obj)} object is not supported")
+
+        if isinstance(obj, Task):
+            task = obj
+            _, lines = find_task_line_number(
+                yaml_body=body,
+                task_name=task.name,
+                module_name=task.module,
+                module_options=task.module_options,
+                task_options=task.options,
+            )
+            if lines and len(lines) == 2:
+                return CodeBlock(begin=lines[0], end=lines[1])
+
+        elif isinstance(obj, Play):
+            play = obj
+            _, lines = find_play_line_number(
+                yaml_body=body,
+                play_name=play.name,
+                play_options=play.options,
+            )
+            if lines and len(lines) == 2:
+                return CodeBlock(begin=lines[0], end=lines[1])
+
+        return None
+
+
+@dataclass
 class Transpiler(object):
     def search_target(self, policy_dir: str):
         yml_policy_pattern = os.path.join(policy_dir, "**", "policies/*.yml")
@@ -343,12 +425,29 @@ class PolicyEvaluator(object):
 
                 if input_type not in results:
                     results[input_type] = []
+
+                filepath = single_input_data.object.filepath
+                if filepath == "__in_memory__":
+                    filepath = project_dir
+
+                lines = None
+                body = ""
+                with open(filepath, "r") as f:
+                    body = f.read()
+                if input_type in ["task", "play"]:
+                    _identifier = LineIdentifier()
+                    block = _identifier.find_block(body=body, obj=single_input_data.object)
+                    lines = block.to_dict()
+
                 results[input_type].append(
                     {
-                        "policy_name": policy_name,
                         "type": input_type,
                         "object": single_input_data.object,
                         "result": result_per_input,
+                        "file": {
+                            "path": filepath,
+                            "lines": lines,
+                        },
                     }
                 )
         return results, runner_jobdata_str
