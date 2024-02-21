@@ -114,9 +114,64 @@ $ ansible-gatekeeper -p examples/project/playbook.yml -c examples/ansible-gateke
 
 From the result, you can see the details on violations.
 
-- [The second task](examples/project/playbook.yml#L30) `Install nginx` is installing a package `nginx` with a root permission by using `become: true`. Nginx is not listed in the allowed packages and this is detected by the `check_package_policy`. Also privilege escalation is detected by the `check_become_policy`.
+- [The task "Install nginx"](examples/project/playbook.yml#L30) is installing a package `nginx` with a root permission by using `become: true`. Nginx is not listed in the allowed packages and this is detected by the `check_package_policy`. Also privilege escalation is detected by the `check_become_policy`.
 
-- [The fourth task](examples/project/playbook.yml#L41) `Set MySQL root password` is using a collection `community.mysql` which is not in the allowed list, and this is detected by the policy `check_collection_policy`.
+- [The task "Set MySQL root password"](examples/project/playbook.yml#L41) is using a collection `community.mysql` which is not in the allowed list, and this is detected by the policy `check_collection_policy`.
+
+
+Alternatively, you can output the evaluation result as a JSON file.
+
+```bash
+$ ansible-gatekeeper -p examples/project/playbook.yml -c examples/ansible-gatekeeper.cfg -o <OUTPUT_DIR>/agk-result.json
+```
+
+Then you would get the JSON file like the following.
+
+<img src="images/example_output_json.png" width="600px">
+
+The `summary` section in the JSON is a summary of the evaluation results such as the number of total policies, the number of policies with one or more violations, total files and OK/NG for each of them.
+
+For example, you can get a summary about files by `jq` command like this.
+
+```bash
+$ cat agk-result.json | jq .summary.files
+{
+  "total": 1,
+  "OK": 0,
+  "NG": 1,
+  "list": [
+    "examples/project/playbook.yml"
+  ]
+}
+```
+
+The `files` section contains the details for each file evaluation result.
+
+Each file result has results per policy, and a policy result contains multiple results for policy evaluation targets like tasks or plays.
+
+For example, you can use this detailed data by the following commands.
+
+```bash
+# get overall result for a file
+$ cat /tmp/agk-result.json | jq .files[0].violation
+true
+
+# get overall result for the second policy for the file
+$ cat /tmp/agk-result.json | jq .files[0].policies[1].violation
+true
+
+# get an policy result for the second task in the file for the second policy
+cat /tmp/agk-result.json | jq .files[0].policies[1].targets[1]
+{
+  "name": "Install nginx [installing unauthorized pkg]",
+  "lines": {
+    "begin": 31,
+    "end": 36
+  },
+  "result": "NG",
+  "message": "privilage escalation is detected. allowed users are one of [\"trusted_user\"]\n"
+}
+```
 
 
 ```

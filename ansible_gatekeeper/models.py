@@ -1,12 +1,15 @@
 import os
+import sys
 import re
 import glob
 import tempfile
 import shutil
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Union
 
 from ansible_gatekeeper.rego_data import (
+    Task,
+    Play,
     PolicyInput,
     load_input_from_jobdata,
     load_input_from_project_dir,
@@ -19,11 +22,14 @@ from ansible_gatekeeper.utils import (
     match_str_expression,
     get_tags_from_rego_policy_file,
     detect_target_module_pattern,
+    detect_target_type_pattern,
     get_rego_main_package_name,
     validate_opa_installation,
     eval_opa_policy,
     match_target_module,
     match_target_type,
+    find_task_line_number,
+    find_play_line_number,
 )
 
 
@@ -235,6 +241,84 @@ class Config(object):
 
 
 @dataclass
+class CodeBlock(object):
+    begin: int = None
+    end: int = None
+
+    @staticmethod
+    def dict2str(line_dict: dict):
+        block = CodeBlock.from_dict(line_dict=line_dict)
+        return str(block)
+
+    @classmethod
+    def from_str(cls, line_str: str):
+        if line_str.startswith("L") and "-" in line_str:
+            parts = line_str.replace("L", "").split("-")
+            block = cls()
+            block.begin = parts[0]
+            block.end = parts[1]
+            return block
+
+        raise ValueError(f"failed to construct a CodeBlock from the string `{line_str}`")
+
+    @classmethod
+    def from_dict(cls, line_dict: dict):
+        if "begin" in line_dict and "end" in line_dict:
+            block = cls()
+            block.begin = line_dict["begin"]
+            block.end = line_dict["end"]
+            return block
+
+        raise ValueError(f"failed to construct a CodeBlock from the dict `{line_dict}`")
+
+    def __repr__(self):
+        if not isinstance(self.begin, int):
+            raise ValueError("`begin` is not found for this code block")
+
+        if not isinstance(self.end, int):
+            raise ValueError("`end` is not found for this code block")
+
+        return f"L{self.begin}-{self.end}"
+
+    def to_dict(self):
+        return {"begin": self.begin, "end": self.end}
+
+
+@dataclass
+class LineIdentifier(object):
+    def find_block(self, body: str, obj: Union[Task, Play]) -> CodeBlock:
+        if not body:
+            return None
+
+        if not isinstance(obj, (Task, Play)):
+            raise TypeError(f"find a code block for {type(obj)} object is not supported")
+
+        if isinstance(obj, Task):
+            task = obj
+            _, lines = find_task_line_number(
+                yaml_body=body,
+                task_name=task.name,
+                module_name=task.module,
+                module_options=task.module_options,
+                task_options=task.options,
+            )
+            if lines and len(lines) == 2:
+                return CodeBlock(begin=lines[0], end=lines[1])
+
+        elif isinstance(obj, Play):
+            play = obj
+            _, lines = find_play_line_number(
+                yaml_body=body,
+                play_name=play.name,
+                play_options=play.options,
+            )
+            if lines and len(lines) == 2:
+                return CodeBlock(begin=lines[0], end=lines[1])
+
+        return None
+
+
+@dataclass
 class Transpiler(object):
     def search_target(self, policy_dir: str):
         yml_policy_pattern = os.path.join(policy_dir, "**", "policies/*.yml")
@@ -245,6 +329,177 @@ class Transpiler(object):
         for yml_policy_path in yml_policy_files:
             dst_path = os.path.splitext(yml_policy_path)[0] + ".rego"
             transpile_yml_policy(src=yml_policy_path, dst=dst_path)
+
+
+class ResultType:
+    OK = "OK"
+    NG = "NG"
+    N_A = "N/A"
+
+    @staticmethod
+    def from_eval_result(eval_result: dict, is_target_type: bool):
+        if not is_target_type:
+            return ResultType.N_A
+
+        eval_result_value = eval_result.get("value", {})
+        violation = False
+        if "deny" in eval_result_value:
+            if eval_result_value["deny"]:
+                violation = True
+        elif "allow" in eval_result_value:
+            if not eval_result_value["allow"]:
+                violation = True
+        if violation:
+            return ResultType.NG
+        else:
+            return ResultType.OK
+
+
+@dataclass
+class TargetResult(object):
+    name: str = None
+    lines: dict = field(default_factory=dict)
+    result: str = None
+    message: str = None
+
+
+@dataclass
+class PolicyResult(object):
+    policy_name: str = None
+    target_type: str = None
+    violation: bool = False
+    targets: List[TargetResult] = field(default_factory=list)
+
+    def add_target_result(self, obj: any, lines: dict, result: str, message: str):
+        target_name = getattr(obj, "name", None)
+        target = TargetResult(name=target_name, lines=lines, result=result, message=message)
+        if result == ResultType.NG:
+            self.violation = True
+        self.targets.append(target)
+
+
+@dataclass
+class FileResult(object):
+    path: str = None
+    violation: bool = False
+    policies: List[PolicyResult] = field(default_factory=list)
+
+    def add_policy_result(
+        self,
+        eval_result: dict,
+        is_target_type: bool,
+        policy_name: str,
+        target_type: str,
+        obj: any,
+        lines: dict,
+    ):
+        policy_result = self.get_policy_result(policy_name=policy_name)
+        need_append = False
+        result_str = ResultType.from_eval_result(eval_result=eval_result, is_target_type=is_target_type)
+        message = eval_result.get("message")
+        if not policy_result:
+            policy_result = PolicyResult(
+                policy_name=policy_name,
+                target_type=target_type,
+            )
+            need_append = True
+        if is_target_type:
+            policy_result.add_target_result(obj=obj, lines=lines, result=result_str, message=message)
+        if need_append:
+            self.policies.append(policy_result)
+
+        if any([p.violation for p in self.policies]):
+            self.violation = True
+        return
+
+    def get_policy_result(self, policy_name: str):
+        for p in self.policies:
+            if p.policy_name == policy_name:
+                return p
+        return None
+
+
+@dataclass
+class EvaluationSummary(object):
+    policies: dict = field(default_factory=dict)
+    files: dict = field(default_factory=dict)
+
+    @staticmethod
+    def from_files(files: List[FileResult]):
+        total_files = len(files)
+        file_names = []
+        violation_files = 0
+        policy_names = []
+        violation_policy_names = []
+        for f in files:
+            for p in f.policies:
+                if p.policy_name not in policy_names:
+                    policy_names.append(p.policy_name)
+                if p.violation and p.policy_name not in violation_policy_names:
+                    violation_policy_names.append(p.policy_name)
+            if f.violation:
+                violation_files += 1
+            if f.path not in file_names:
+                file_names.append(f.path)
+        total_policies = len(policy_names)
+        violation_policies = len(violation_policy_names)
+        policies_data = {
+            "total": total_policies,
+            "violation_detected": violation_policies,
+            "list": policy_names,
+        }
+        files_data = {
+            "total": total_files,
+            "OK": total_files - violation_files,
+            "NG": violation_files,
+            "list": file_names,
+        }
+        return EvaluationSummary(
+            policies=policies_data,
+            files=files_data,
+        )
+
+
+@dataclass
+class EvaluationResult(object):
+    summary: EvaluationSummary = None
+    files: List[FileResult] = field(default_factory=list)
+
+    def add_single_result(
+        self,
+        eval_result: dict,
+        is_target_type: bool,
+        policy_name: str,
+        target_type: str,
+        obj: any,
+        filepath: str,
+        lines: dict,
+    ):
+        file_result = self.get_file_result(filepath=filepath)
+        need_append = False
+        if not file_result:
+            file_result = FileResult(path=filepath)
+            need_append = True
+
+        file_result.add_policy_result(
+            eval_result=eval_result,
+            is_target_type=is_target_type,
+            policy_name=policy_name,
+            target_type=target_type,
+            obj=obj,
+            lines=lines,
+        )
+        if need_append:
+            self.files.append(file_result)
+
+        self.summary = EvaluationSummary.from_files(self.files)
+        return
+
+    def get_file_result(self, filepath: str):
+        for f in self.files:
+            if f.path == filepath:
+                return f
+        return None
 
 
 @dataclass
@@ -323,35 +578,43 @@ class PolicyEvaluator(object):
             if input_data_all_tasks:
                 input_data_dict["task"] = input_data_all_tasks
 
-        results = {}
+        result = EvaluationResult()
         for input_type in input_data_dict:
             input_data_per_type = input_data_dict[input_type]
             for single_input_data in input_data_per_type:
-                result_per_input = {}
+                filepath = single_input_data.object.filepath
+                if filepath == "__in_memory__":
+                    filepath = project_dir
+
+                lines = None
+                body = ""
+                with open(filepath, "r") as f:
+                    body = f.read()
+                if input_type in ["task", "play"]:
+                    _identifier = LineIdentifier()
+                    block = _identifier.find_block(body=body, obj=single_input_data.object)
+                    lines = block.to_dict()
+
                 for policy_path in policy_files:
                     policy_name = get_rego_main_package_name(rego_path=policy_path)
-                    is_target_type, rego_out = self.eval_single_policy(
+                    target_type = detect_target_type_pattern(policy_path=policy_path)
+                    is_target_type, eval_result = self.eval_single_policy(
                         rego_path=policy_path,
                         input_type=input_type,
                         input_data=single_input_data,
                         external_data_path=external_data_path,
                     )
-                    result_per_input[policy_name] = {
-                        "rego_out": rego_out,
-                        "is_target_type": is_target_type,
-                    }
+                    result.add_single_result(
+                        eval_result=eval_result,
+                        is_target_type=is_target_type,
+                        policy_name=policy_name,
+                        target_type=target_type,
+                        obj=single_input_data.object,
+                        filepath=filepath,
+                        lines=lines,
+                    )
 
-                if input_type not in results:
-                    results[input_type] = []
-                results[input_type].append(
-                    {
-                        "policy_name": policy_name,
-                        "type": input_type,
-                        "object": single_input_data.object,
-                        "result": result_per_input,
-                    }
-                )
-        return results, runner_jobdata_str
+        return result, runner_jobdata_str
 
     def eval_single_policy(self, rego_path: str, input_type: str, input_data: PolicyInput, external_data_path: str) -> tuple[bool, str]:
         if not match_target_type(target_type=input_type, rego_path=rego_path):
@@ -367,3 +630,96 @@ class PolicyEvaluator(object):
             external_data_path=external_data_path,
         )
         return True, result
+
+
+@dataclass
+class ResultFormatter(object):
+    isatty: bool = None
+    term_width: int = None
+
+    def __post_init__(self):
+        if self.isatty is None:
+            self.isatty = sys.stdout.isatty()
+        if self.term_width is None:
+            self.term_width = os.get_terminal_size().columns
+        return
+
+    def print(self, result: EvaluationResult):
+        ng_targets = []
+        for f in result.files:
+            filepath = f.path
+            for p in f.policies:
+                for t in p.targets:
+                    if t.result == ResultType.NG:
+                        detail = {
+                            "type": p.target_type,
+                            "name": t.name,
+                            "policy_name": p.policy_name,
+                            "filepath": filepath,
+                            "lines": CodeBlock.dict2str(t.lines),
+                            "message": t.message,
+                        }
+                        ng_targets.append(detail)
+        headers = []
+        violation_per_type = {}
+        for d in ng_targets:
+            _type = d.get("type", "")
+            _type_up = _type.upper()
+            name = d.get("name", "")
+            policy_name = d.get("policy_name", "")
+            filepath = d.get("filepath", "")
+            lines = d.get("lines", "")
+            message = d.get("message", "").strip()
+            _list = violation_per_type.get(_type, [])
+            pattern = f"{_type} {name} {filepath} {lines}"
+            if pattern not in _list:
+                violation_per_type[_type] = _list + [pattern]
+
+            file_info = f"{filepath} {lines}"
+            if self.isatty:
+                file_info = f"\033[93m{file_info}\033[00m"
+            header = f"{_type_up} [{name}] {file_info} ".ljust(self.term_width, "*")
+            if header not in headers:
+                print(header)
+                headers.append(header)
+
+            flag = "NG"
+            if self.isatty:
+                flag = f"\033[91m{flag}\033[00m"
+                message = f"\033[90m{message}\033[00m"
+            print(f"... {policy_name} {flag}")
+            print(f"    {message}")
+            print("")
+        print("-" * self.term_width)
+        print("SUMMARY")
+        total_files = result.summary.files.get("total", 0)
+        ok_files = result.summary.files.get("OK", 0)
+        ng_files = result.summary.files.get("NG", 0)
+        total_label = "Total files"
+        ok_label = "OK"
+        ng_label = "NG"
+        if self.isatty:
+            total_label = f"\033[92m{total_label}\033[00m"
+            ok_label = f"\033[96m{ok_label}\033[00m"
+            ng_label = f"\033[91m{ng_label}\033[00m"
+        print(f"... {total_label}: {total_files}, {ok_label}: {ok_files}, {ng_label}: {ng_files}")
+        print("")
+        count_str = ""
+        for _type, _list in violation_per_type.items():
+            count = len(_list)
+            plural = ""
+            if count > 1:
+                plural = "s"
+            count_str = f"{count_str}, {count} {_type}{plural}"
+        if count_str:
+            count_str = count_str[2:]
+            violation_str = f"Violations are detected! in {count_str}"
+            if self.isatty:
+                violation_str = f"\033[91m{violation_str}\033[00m"
+            print(violation_str)
+        else:
+            violation_str = "No violations are detected"
+            if self.isatty:
+                violation_str = f"\033[96m{violation_str}\033[00m"
+            print(violation_str)
+        print("")
