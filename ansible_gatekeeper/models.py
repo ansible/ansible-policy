@@ -331,15 +331,15 @@ class Transpiler(object):
             transpile_yml_policy(src=yml_policy_path, dst=dst_path)
 
 
-class ResultType:
-    OK = "OK"
-    NG = "NG"
-    N_A = "N/A"
+class ValidationType:
+    SUCCESS = True
+    FAILURE = False
+    NONE = None
 
     @staticmethod
     def from_eval_result(eval_result: dict, is_target_type: bool):
         if not is_target_type:
-            return ResultType.N_A
+            return ValidationType.NONE
 
         eval_result_value = eval_result.get("value", {})
         violation = False
@@ -350,16 +350,16 @@ class ResultType:
             if not eval_result_value["allow"]:
                 violation = True
         if violation:
-            return ResultType.NG
+            return ValidationType.FAILURE
         else:
-            return ResultType.OK
+            return ValidationType.SUCCESS
 
 
 @dataclass
 class TargetResult(object):
     name: str = None
     lines: dict = field(default_factory=dict)
-    result: str = None
+    validated: bool = None
     message: str = None
 
 
@@ -370,10 +370,10 @@ class PolicyResult(object):
     violation: bool = False
     targets: List[TargetResult] = field(default_factory=list)
 
-    def add_target_result(self, obj: any, lines: dict, result: str, message: str):
+    def add_target_result(self, obj: any, lines: dict, validated: bool, message: str):
         target_name = getattr(obj, "name", None)
-        target = TargetResult(name=target_name, lines=lines, result=result, message=message)
-        if result == ResultType.NG:
+        target = TargetResult(name=target_name, lines=lines, validated=validated, message=message)
+        if isinstance(validated, bool) and not validated:
             self.violation = True
         self.targets.append(target)
 
@@ -395,7 +395,7 @@ class FileResult(object):
     ):
         policy_result = self.get_policy_result(policy_name=policy_name)
         need_append = False
-        result_str = ResultType.from_eval_result(eval_result=eval_result, is_target_type=is_target_type)
+        validated = ValidationType.from_eval_result(eval_result=eval_result, is_target_type=is_target_type)
         message = eval_result.get("message")
         if not policy_result:
             policy_result = PolicyResult(
@@ -404,7 +404,7 @@ class FileResult(object):
             )
             need_append = True
         if is_target_type:
-            policy_result.add_target_result(obj=obj, lines=lines, result=result_str, message=message)
+            policy_result.add_target_result(obj=obj, lines=lines, validated=validated, message=message)
         if need_append:
             self.policies.append(policy_result)
 
@@ -450,8 +450,8 @@ class EvaluationSummary(object):
         }
         files_data = {
             "total": total_files,
-            "OK": total_files - violation_files,
-            "NG": violation_files,
+            "validated": total_files - violation_files,
+            "not_validated": violation_files,
             "list": file_names,
         }
         return EvaluationSummary(
@@ -645,12 +645,12 @@ class ResultFormatter(object):
         return
 
     def print(self, result: EvaluationResult):
-        ng_targets = []
+        not_validated_targets = []
         for f in result.files:
             filepath = f.path
             for p in f.policies:
                 for t in p.targets:
-                    if t.result == ResultType.NG:
+                    if isinstance(t.validated, bool) and not t.validated:
                         detail = {
                             "type": p.target_type,
                             "name": t.name,
@@ -659,10 +659,10 @@ class ResultFormatter(object):
                             "lines": CodeBlock.dict2str(t.lines),
                             "message": t.message,
                         }
-                        ng_targets.append(detail)
+                        not_validated_targets.append(detail)
         headers = []
         violation_per_type = {}
-        for d in ng_targets:
+        for d in not_validated_targets:
             _type = d.get("type", "")
             _type_up = _type.upper()
             name = d.get("name", "")
@@ -683,7 +683,7 @@ class ResultFormatter(object):
                 print(header)
                 headers.append(header)
 
-            flag = "NG"
+            flag = "Not Validated"
             if self.isatty:
                 flag = f"\033[91m{flag}\033[00m"
                 message = f"\033[90m{message}\033[00m"
@@ -693,16 +693,16 @@ class ResultFormatter(object):
         print("-" * self.term_width)
         print("SUMMARY")
         total_files = result.summary.files.get("total", 0)
-        ok_files = result.summary.files.get("OK", 0)
-        ng_files = result.summary.files.get("NG", 0)
+        valid_files = result.summary.files.get("validated", 0)
+        not_valid_files = result.summary.files.get("not_validated", 0)
         total_label = "Total files"
-        ok_label = "OK"
-        ng_label = "NG"
+        valid_label = "Validated"
+        not_valid_label = "Not Validated"
         if self.isatty:
             total_label = f"\033[92m{total_label}\033[00m"
-            ok_label = f"\033[96m{ok_label}\033[00m"
-            ng_label = f"\033[91m{ng_label}\033[00m"
-        print(f"... {total_label}: {total_files}, {ok_label}: {ok_files}, {ng_label}: {ng_files}")
+            valid_label = f"\033[96m{valid_label}\033[00m"
+            not_valid_label = f"\033[91m{not_valid_label}\033[00m"
+        print(f"... {total_label}: {total_files}, {valid_label}: {valid_files}, {not_valid_label}: {not_valid_files}")
         print("")
         count_str = ""
         for _type, _list in violation_per_type.items():
