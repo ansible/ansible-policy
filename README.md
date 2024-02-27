@@ -137,8 +137,8 @@ For example, you can get a summary about files by `jq` command like this.
 $ cat agk-result.json | jq .summary.files
 {
   "total": 1,
-  "OK": 0,
-  "NG": 1,
+  "validated": 0,
+  "not_validated": 1,
   "list": [
     "examples/project/playbook.yml"
   ]
@@ -168,7 +168,7 @@ cat /tmp/agk-result.json | jq .files[0].policies[1].targets[1]
     "begin": 31,
     "end": 36
   },
-  "result": "NG",
+  "validated": false,
   "message": "privilage escalation is detected. allowed users are one of [\"trusted_user\"]\n"
 }
 ```
