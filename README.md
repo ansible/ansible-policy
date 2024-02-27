@@ -119,10 +119,10 @@ From the result, you can see the details on violations.
 - [The task "Set MySQL root password"](examples/project/playbook.yml#L41) is using a collection `community.mysql` which is not in the allowed list, and this is detected by the policy `check_collection_policy`.
 
 
-Alternatively, you can output the evaluation result as a JSON file.
+Alternatively, you can output the evaluation result in a JSON format.
 
 ```bash
-$ ansible-gatekeeper -p examples/project/playbook.yml -c examples/ansible-gatekeeper.cfg -o <OUTPUT_DIR>/agk-result.json
+$ ansible-gatekeeper -p examples/project/playbook.yml -c examples/ansible-gatekeeper.cfg --format json > agk-result.json
 ```
 
 Then you would get the JSON file like the following.
