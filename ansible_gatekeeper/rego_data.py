@@ -7,6 +7,8 @@ import json
 import yaml
 from dataclasses import dataclass, field
 from typing import List, Dict
+from ansible.executor.task_result import TaskResult as AnsibleTaskResult
+from ansible.parsing.yaml.objects import AnsibleUnicode
 
 from ansible_gatekeeper.utils import (
     get_module_name_from_task,
@@ -36,6 +38,7 @@ InputTypeTask = "task"
 InputTypePlay = "play"
 InputTypeRole = "role"
 InputTypeProject = "project"
+InputTypeTaskResult = "task_result"
 
 
 @dataclass
@@ -88,13 +91,19 @@ def load_input_from_jobdata(jobdata_path: str = ""):
         jobdata=runner_jobdata_str,
         workdir=workdir.name,
     )
-    policy_input = make_policy_input(target_path=workdir.name)
+    policy_input = make_policy_input_with_scan(target_path=workdir.name)
     workdir.cleanup()
     return policy_input, runner_jobdata_str
 
 
 def load_input_from_project_dir(project_dir: str = ""):
-    policy_input = make_policy_input(target_path=project_dir)
+    policy_input = make_policy_input_with_scan(target_path=project_dir)
+    return policy_input
+
+
+def load_input_from_task_result(task_result: AnsibleTaskResult = None):
+    _task_result = TaskResult.from_ansible_object(object=task_result)
+    policy_input = make_policy_input_for_task_result(task_result=_task_result)
     return policy_input
 
 
@@ -415,6 +424,28 @@ class Project(object):
 
 
 @dataclass
+class TaskResult(AnsibleTaskResult):
+    filepath: str = ""
+
+    _host: any = None
+    _task: any = None
+    _result: any = None
+    _task_fields: any = None
+
+    @staticmethod
+    def from_ansible_object(object: AnsibleTaskResult):
+        task_result = TaskResult()
+        for key, val in object.__dict__.items():
+            if hasattr(task_result, key):
+                setattr(task_result, key, val)
+
+        task = task_result._task
+        filepath = list(task._loader._FILE_CACHE.keys())[0]
+        task_result.filepath = filepath
+        return task_result
+
+
+@dataclass
 class PolicyInput(object):
     type: str = ""
     source: dict = field(default_factory=dict)
@@ -426,6 +457,7 @@ class PolicyInput(object):
     task: Task = None
     play: Play = None
     role: Role = None
+    task_result: TaskResult = None
 
     vars_files: dict = field(default_factory=dict)
 
@@ -518,6 +550,31 @@ class PolicyInput(object):
 
             return [p_input]
 
+    @staticmethod
+    def from_task_result(task_result: TaskResult):
+        if not isinstance(task_result, TaskResult):
+            raise TypeError(f"`task_result` must be a TaskResult object, but received {type(task_result)}")
+        task = task_result._task
+        parent = task._parent
+        play = parent._play
+        variable_manager = play._variable_manager
+        fact_cache = variable_manager._fact_cache
+        extra_vars = variable_manager._extra_vars
+        plugin = fact_cache._plugin
+        facts = plugin._cache
+        np_fact_cache = variable_manager._nonpersistent_fact_cache
+        variables = {
+            "extra_vars": task_result_vars2dict(extra_vars),
+            "facts": facts,
+            "runtime_vars": np_fact_cache,
+        }
+
+        p_input = PolicyInput()
+        p_input.type = InputTypeTaskResult
+        p_input.task_result = task_result
+        p_input.variables = variables
+        return [p_input]
+
     def to_object_json(self, **kwargs):
         kwargs["value"] = self
         kwargs["make_refs"] = False
@@ -533,10 +590,13 @@ class PolicyInput(object):
                     data = task_data_block[0]
             elif self.type == InputTypePlay:
                 data = self.play.options
+            elif self.type == InputTypeTaskResult:
+                data["variables"] = self.variables
         except Exception:
             pass
         data["_agk"] = self
         kwargs["value"] = data
+        kwargs["unpicklable"] = False
         kwargs["make_refs"] = False
         kwargs["separators"] = (",", ":")
         return jsonpickle.encode(**kwargs)
@@ -556,6 +616,16 @@ class PolicyInput(object):
     def object(self):
         obj = getattr(self, self.type, None)
         return obj
+
+
+def task_result_vars2dict(task_result_vars: dict):
+    key_value = {}
+    for key, arg_val in task_result_vars.items():
+        val = arg_val
+        if isinstance(arg_val, AnsibleUnicode):
+            val = str(arg_val)
+        key_value[key] = val
+    return key_value
 
 
 def process_input_data_with_external_data(input_type: str, input_data: PolicyInput, external_data_path: str):
@@ -583,7 +653,7 @@ def process_input_data_with_external_data(input_type: str, input_data: PolicyInp
 
 
 # make policy input data by scanning target project
-def make_policy_input(target_path: str, metadata: dict = {}) -> List[PolicyInput]:
+def make_policy_input_with_scan(target_path: str, metadata: dict = {}) -> Dict[str, List[PolicyInput]]:
     fpath = ""
     dpath = ""
     if os.path.isfile(target_path):
@@ -613,4 +683,12 @@ def make_policy_input(target_path: str, metadata: dict = {}) -> List[PolicyInput
         raise ValueError(f"`{target_path}` does not exist")
     policy_input = scan_project(**kwargs)
 
+    return policy_input
+
+
+def make_policy_input_for_task_result(task_result: TaskResult = None) -> Dict[str, List[PolicyInput]]:
+    policy_input_task_result = PolicyInput.from_task_result(task_result=task_result)
+    policy_input = {
+        "task_result": policy_input_task_result,
+    }
     return policy_input

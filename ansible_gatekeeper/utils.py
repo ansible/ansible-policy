@@ -62,7 +62,10 @@ def eval_opa_policy(rego_path: str, input_data: str, external_data_path: str, ex
         raise ValueError("`package` must be defined in the rego policy file")
 
     util_rego_path = os.path.join(os.path.dirname(__file__), "rego/utils.rego")
-    cmd_str = f"{executable_name} eval --data {util_rego_path} --data {rego_path} --data {external_data_path} --stdin-input 'data.{rego_pkg_name}'"
+    external_data_option = ""
+    if external_data_path:
+        external_data_option = f"--data {external_data_path}"
+    cmd_str = f"{executable_name} eval --data {util_rego_path} --data {rego_path} {external_data_option} --stdin-input 'data.{rego_pkg_name}'"
     proc = subprocess.run(
         cmd_str,
         shell=True,
@@ -73,7 +76,7 @@ def eval_opa_policy(rego_path: str, input_data: str, external_data_path: str, ex
         text=True,
     )
     logger.debug(f"command: {cmd_str}")
-    logger.debug(f"proc.input_data: {input_data}")
+    # logger.debug(f"proc.input_data: {input_data}")
     logger.debug(f"proc.stdout: {proc.stdout}")
     logger.debug(f"proc.stderr: {proc.stderr}")
 
