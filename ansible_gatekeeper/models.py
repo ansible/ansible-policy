@@ -6,6 +6,7 @@ import tempfile
 import shutil
 from dataclasses import dataclass, field
 from typing import List, Union
+from ansible.executor.task_result import TaskResult
 
 from ansible_gatekeeper.rego_data import (
     Task,
@@ -13,6 +14,7 @@ from ansible_gatekeeper.rego_data import (
     PolicyInput,
     load_input_from_jobdata,
     load_input_from_project_dir,
+    load_input_from_task_result,
     process_input_data_with_external_data,
 )
 from ansible_gatekeeper.utils import (
@@ -43,6 +45,7 @@ default_policy_install_dir = "/tmp/ansible-gatekeeper/installed_policies"
 
 EvalTypeJobdata = "jobdata"
 EvalTypeProject = "project"
+EvalTypeTaskResult = "task_result"
 
 
 @dataclass
@@ -321,8 +324,15 @@ class LineIdentifier(object):
 @dataclass
 class Transpiler(object):
     def search_target(self, policy_dir: str):
-        yml_policy_pattern = os.path.join(policy_dir, "**", "policies/*.yml")
-        found_files = glob.glob(pathname=yml_policy_pattern, recursive=True)
+        yml_policy_pattern_1 = os.path.join(policy_dir, "**", "policies/*.yml")
+        yml_policy_pattern_2 = os.path.join(policy_dir, "**", "extensions/policy/*/*.yml")
+        found_files = []
+        found_files_1 = glob.glob(pathname=yml_policy_pattern_1, recursive=True)
+        if found_files_1:
+            found_files.extend(found_files_1)
+        found_files_2 = glob.glob(pathname=yml_policy_pattern_2, recursive=True)
+        if found_files_2:
+            found_files.extend(found_files_2)
         return found_files
 
     def run(self, yml_policy_files: list):
@@ -534,8 +544,15 @@ class PolicyEvaluator(object):
 
     def list_enabled_policies(self):
         policy_dir = self.root_dir
-        rego_policy_pattern = os.path.join(policy_dir, "**", "policies/*.rego")
-        found_files = glob.glob(pathname=rego_policy_pattern, recursive=True)
+        rego_policy_pattern_1 = os.path.join(policy_dir, "**", "policies/*.rego")
+        found_files_1 = glob.glob(pathname=rego_policy_pattern_1, recursive=True)
+        rego_policy_pattern_2 = os.path.join(policy_dir, "**", "extensions/policy/*/*.rego")
+        found_files_2 = glob.glob(pathname=rego_policy_pattern_2, recursive=True)
+        found_files = []
+        if found_files_1:
+            found_files.extend(found_files_1)
+        if found_files_2:
+            found_files.extend(found_files_2)
         # sort patterns by their name because a longer pattern is prioritized than a shorter one
         patterns = sorted(self.patterns, key=lambda x: len(x.name))
 
@@ -553,7 +570,14 @@ class PolicyEvaluator(object):
                 enabled_policies.append(path)
         return enabled_policies
 
-    def run(self, eval_type: str = "project", project_dir: str = "", jobdata_path: str = "", external_data_path: str = ""):
+    def run(
+        self,
+        eval_type: str = "project",
+        project_dir: str = "",
+        jobdata_path: str = "",
+        task_result: TaskResult = None,
+        external_data_path: str = "",
+    ):
         policy_files = self.list_enabled_policies()
 
         runner_jobdata_str = None
@@ -561,6 +585,8 @@ class PolicyEvaluator(object):
             input_data_dict, runner_jobdata_str = load_input_from_jobdata(jobdata_path=jobdata_path)
         elif eval_type == EvalTypeProject:
             input_data_dict = load_input_from_project_dir(project_dir=project_dir)
+        elif eval_type == EvalTypeTaskResult:
+            input_data_dict = load_input_from_task_result(task_result=task_result)
         else:
             raise ValueError(f"eval_type `{eval_type}` is not supported")
 
