@@ -14,6 +14,7 @@ def main():
     parser.add_argument("-t", "--type", default="project", help="policy evaluation type (`jobdata` or `project`)")
     parser.add_argument("-p", "--project-dir", help="target project directory for project type")
     parser.add_argument("-e", "--external-data", default="", help="filepath to external data like knowledge base data")
+    parser.add_argument("-v", "--variables", default="", help="filepath to variables JSON data")
     parser.add_argument("-j", "--jobdata", help="alternative way to load jobdata from a file instead of stdin")
     parser.add_argument("-c", "--config", help="path to config file which configures policies to be evaluated")
     parser.add_argument("-f", "--format", default="plain", help="output format (`plain` or `json`, default to `plain`)")
@@ -22,6 +23,7 @@ def main():
     eval_type = args.type
     project_dir = args.project_dir
     external_data_path = args.external_data
+    variables_path = args.variables
     jobdata_path = args.jobdata
     config_path = args.config
     _format = args.format
@@ -41,6 +43,7 @@ def main():
         project_dir=project_dir,
         jobdata_path=jobdata_path,
         external_data_path=external_data_path,
+        variables_path=variables_path,
     )
 
     # if json format is specified, output the result object in json to stdout

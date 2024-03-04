@@ -18,7 +18,7 @@ import argparse
 import os
 import glob
 import yaml
-from transpiler import PolicyTranspiler
+from ansible_gatekeeper.policybook.transpiler import PolicyTranspiler
 
 
 if __name__ == "__main__":

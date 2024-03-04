@@ -29,6 +29,7 @@ from ansible_scan_core.models import (
     ScanResult,
     VariableContainer,
 )
+from ansible_scan_core.utils import extract_var_parts
 
 
 scanner = AnsibleScanner(silent=True)
@@ -39,6 +40,40 @@ InputTypePlay = "play"
 InputTypeRole = "role"
 InputTypeProject = "project"
 InputTypeTaskResult = "task_result"
+
+
+@dataclass
+class Variables(object):
+    # from scan results
+    task_vars: dict = field(default_factory=dict)
+    play_vars: dict = field(default_factory=dict)
+    role_vars: dict = field(default_factory=dict)
+    role_defaults: dict = field(default_factory=dict)
+
+    # from callback objects
+    extra_vars: dict = field(default_factory=dict)
+    facts: dict = field(default_factory=dict)
+    # non persistent facts such as registered vars / set facts
+    np_facts: dict = field(default_factory=dict)
+
+    @staticmethod
+    def from_variables_file(path: str):
+        data = None
+        with open(path, "r") as f:
+            data = json.load(f)
+        if not data:
+            return Variables()
+        if not isinstance(data, dict):
+            raise TypeError(f"variables file contents must be a dict, but detected `{type(data)}`")
+        return Variables.from_json(data=data)
+
+    @staticmethod
+    def from_json(data: dict):
+        v = Variables()
+        for key, val in data.items():
+            if hasattr(v, key):
+                setattr(v, key, val)
+        return v
 
 
 @dataclass
@@ -96,8 +131,8 @@ def load_input_from_jobdata(jobdata_path: str = ""):
     return policy_input, runner_jobdata_str
 
 
-def load_input_from_project_dir(project_dir: str = ""):
-    policy_input = make_policy_input_with_scan(target_path=project_dir)
+def load_input_from_project_dir(project_dir: str = "", variables: Variables = None):
+    policy_input = make_policy_input_with_scan(target_path=project_dir, variables=variables)
     return policy_input
 
 
@@ -108,7 +143,13 @@ def load_input_from_task_result(task_result: AnsibleTaskResult = None):
 
 
 def scan_project(
-    input_types: List[str], yaml_str: str = "", project_dir: str = "", metadata: dict = None, runtime_data: RuntimeData = None, output_dir: str = ""
+    input_types: List[str],
+    yaml_str: str = "",
+    project_dir: str = "",
+    metadata: dict = None,
+    runtime_data: RuntimeData = None,
+    variables: Variables = None,
+    output_dir: str = "",
 ):
     _metadata = {}
     if metadata:
@@ -134,6 +175,7 @@ def scan_project(
     base_input_list = PolicyInput.from_scan_result(
         project=project,
         runtime_data=runtime_data,
+        variables=variables,
         input_type=InputTypeProject,
     )
     base_input = base_input_list[0]
@@ -143,6 +185,7 @@ def scan_project(
         policy_input_per_type = PolicyInput.from_scan_result(
             project=project,
             runtime_data=runtime_data,
+            variables=variables,
             input_type=input_type,
             base_input=base_input,
         )
@@ -471,10 +514,10 @@ class PolicyInput(object):
     # others?
 
     @staticmethod
-    def from_scan_result(project: ScanResult, runtime_data: RuntimeData = None, input_type: str = "", base_input=None):
+    def from_scan_result(project: ScanResult, runtime_data: RuntimeData = None, variables: Variables = None, input_type: str = "", base_input=None):
         if input_type == InputTypeTask:
             if not base_input:
-                base_input_list = PolicyInput.from_scan_result(project=project, runtime_data=runtime_data)
+                base_input_list = PolicyInput.from_scan_result(project=project, runtime_data=runtime_data, variables=variables)
                 base_input = base_input_list[0]
             tasks = []
             for playbook in base_input.playbooks.values():
@@ -545,8 +588,16 @@ class PolicyInput(object):
             if p_input.extra_vars:
                 _common_vars.update(p_input.extra_vars)
 
-            variables = get_all_set_vars(project=project, common_vars=_common_vars)
-            p_input.variables = variables
+            set_variables_for_all_trees = get_all_set_vars(project=project, common_vars=_common_vars)
+            set_variables = {}
+            for set_vars_per_tree in set_variables_for_all_trees.values():
+                if isinstance(set_vars_per_tree, dict) and set_vars_per_tree:
+                    set_variables.update(set_vars_per_tree)
+
+            if variables:
+                if variables.extra_vars:
+                    set_variables.update(variables.extra_vars)
+            p_input.variables = set_variables
 
             return [p_input]
 
@@ -588,6 +639,7 @@ class PolicyInput(object):
                 task_data_block = yaml.safe_load(self.task.yaml_lines)
                 if task_data_block:
                     data = task_data_block[0]
+                    data = recursive_resolve_variable(data, self.variables)
             elif self.type == InputTypePlay:
                 data = self.play.options
             elif self.type == InputTypeTaskResult:
@@ -616,6 +668,84 @@ class PolicyInput(object):
     def object(self):
         obj = getattr(self, self.type, None)
         return obj
+
+
+def recursive_resolve_single_var(txt: str, variables: dict):
+    if not isinstance(txt, str):
+        return txt
+
+    if "{{" not in txt:
+        return txt
+
+    var_names = extract_var_parts(txt)
+    resolved_txt = txt
+    for var_name, var_details in var_names.items():
+        var_original_txt = var_details["original"]
+        if var_original_txt not in txt:
+            continue
+
+        if var_name not in variables:
+            continue
+
+        resolved_value = variables[var_name]
+        if isinstance(resolved_value, list):
+            if len(resolved_value) == 1:
+                if txt == var_original_txt:
+                    resolved_txt = resolved_value[0]
+                else:
+                    resolved_var_str = f"{resolved_value[0]}"
+                    resolved_txt = txt.replace(var_original_txt, resolved_var_str)
+            else:
+                resolved_txt = []
+                for single_val in resolved_value:
+                    _resolved = None
+                    if txt == var_original_txt:
+                        _resolved = single_val
+                    else:
+                        resolved_var_str = f"{single_val}"
+                        _resolved = txt.replace(var_original_txt, resolved_var_str)
+                    resolved_txt.append(_resolved)
+        else:
+            if txt == var_original_txt:
+                resolved_txt = resolved_value
+            else:
+                resolved_var_str = f"{resolved_value}"
+                resolved_txt = txt.replace(var_original_txt, resolved_var_str)
+
+        if type(txt) == type(resolved_txt) and txt == resolved_txt:
+            continue
+
+        if isinstance(resolved_txt, (str, list)):
+            resolved_txt = recursive_resolve_single_var(resolved_txt, variables)
+    return resolved_txt
+
+
+# TODO: support resolution for variables without bracket (e.g. `when: foo == "bar"`)
+def recursive_resolve_variable(data: any, variables: dict, datapath: str = ""):
+    if not data:
+        return data
+
+    if not variables:
+        return data
+
+    newdata = None
+    if isinstance(data, dict):
+        newdata = {}
+        for key, val in data.items():
+            _datapath = f"{datapath}.{key}"
+            newval = recursive_resolve_variable(val, variables, _datapath)
+            newdata[key] = newval
+    elif isinstance(data, list):
+        newdata = []
+        for i, val in enumerate(data):
+            _datapath = f"{datapath}.{i}"
+            newval = recursive_resolve_variable(val, variables, _datapath)
+            newdata.append(newval)
+    elif isinstance(data, str):
+        newdata = recursive_resolve_single_var(data, variables)
+    else:
+        newdata = data
+    return newdata
 
 
 def task_result_vars2dict(task_result_vars: dict):
@@ -653,7 +783,7 @@ def process_input_data_with_external_data(input_type: str, input_data: PolicyInp
 
 
 # make policy input data by scanning target project
-def make_policy_input_with_scan(target_path: str, metadata: dict = {}) -> Dict[str, List[PolicyInput]]:
+def make_policy_input_with_scan(target_path: str, metadata: dict = {}, variables: Variables = None) -> Dict[str, List[PolicyInput]]:
     fpath = ""
     dpath = ""
     if os.path.isfile(target_path):
@@ -671,6 +801,7 @@ def make_policy_input_with_scan(target_path: str, metadata: dict = {}) -> Dict[s
         ],
         metadata=metadata,
         runtime_data=runtime_data,
+        variables=variables,
     )
     if fpath:
         yaml_str = ""

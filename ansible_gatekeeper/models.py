@@ -3,7 +3,6 @@ import sys
 import re
 import glob
 import tempfile
-import shutil
 from dataclasses import dataclass, field
 from typing import List, Union
 from ansible.executor.task_result import TaskResult
@@ -11,15 +10,16 @@ from ansible.executor.task_result import TaskResult
 from ansible_gatekeeper.rego_data import (
     Task,
     Play,
+    Variables,
     PolicyInput,
     load_input_from_jobdata,
     load_input_from_project_dir,
     load_input_from_task_result,
     process_input_data_with_external_data,
 )
+from ansible_gatekeeper.policybook.transpiler import PolicyTranspiler
 from ansible_gatekeeper.utils import (
     init_logger,
-    install_galaxy_collection,
     transpile_yml_policy,
     match_str_expression,
     get_tags_from_rego_policy_file,
@@ -141,33 +141,23 @@ class Source(object):
         if exists and not force:
             return None
 
-        logger.info(f"Installing policies `{self.name}` to `{target_dir}`")
+        logger.debug(f"Installing policies `{self.name}` to `{target_dir}`")
 
-        installed_path = None
+        policybook_dir = None
         if self.type == "path":
-            with tempfile.TemporaryDirectory() as tmp_dir:
-                shutil.copytree(src=self.source, dst=tmp_dir, dirs_exist_ok=True)
-                os.makedirs(target_dir, exist_ok=True)
-                shutil.copytree(src=tmp_dir, dst=target_dir, dirs_exist_ok=True)
-                installed_path = target_dir
+            policybook_dir = self.source
         elif self.type == "galaxy":
-            with tempfile.TemporaryDirectory() as tmp_dir:
-                install_galaxy_collection(name=self.source, target_dir=tmp_dir)
-                os.makedirs(target_dir, exist_ok=True)
-                shutil.copytree(src=tmp_dir, dst=target_dir, dirs_exist_ok=True)
-                installed_path = target_dir
+            # Do not install policies from Galaxy
+            pass
         else:
             raise ValueError(f"`{self.type}` is not a supported policy type")
 
-        if installed_path:
-            transpiler = Transpiler()
-            yml_policy_files = transpiler.search_target(policy_dir=installed_path)
-            if yml_policy_files:
-                policy_num = len(yml_policy_files)
-                logger.debug(f"Transpiling {policy_num} policis")
-                transpiler.run(yml_policy_files=yml_policy_files)
+        if policybook_dir:
+            tmp_dir = tempfile.TemporaryDirectory()
+            p_transpiler = PolicyTranspiler(tmp_dir=tmp_dir)
+            p_transpiler.run(policybook_dir, target_dir)
 
-        return installed_path
+        return policybook_dir
 
 
 @dataclass
@@ -516,6 +506,7 @@ class EvaluationResult(object):
 class PolicyEvaluator(object):
     config_path: str = ""
     root_dir: str = ""
+    need_cleanup: bool = False
 
     patterns: List[PolicyPattern] = field(default_factory=list)
     sources: List[Source] = field(default_factory=list)
@@ -529,7 +520,9 @@ class PolicyEvaluator(object):
             self.sources = cfg.source.sources
 
         if not self.root_dir:
-            self.root_dir = default_policy_install_dir
+            tmp_dir = tempfile.TemporaryDirectory()
+            self.root_dir = tmp_dir.name
+            self.need_cleanup = True
 
         installed_path_list = []
         if self.sources:
@@ -541,6 +534,13 @@ class PolicyEvaluator(object):
                 if installed_path:
                     installed_path_list.append(installed_path)
         return
+
+    def __del__(self):
+        if self.need_cleanup and self.root_dir and os.path.exists(self.root_dir):
+            try:
+                os.remove(self.root_dir)
+            except Exception:
+                pass
 
     def list_enabled_policies(self):
         policy_dir = self.root_dir
@@ -577,14 +577,19 @@ class PolicyEvaluator(object):
         jobdata_path: str = "",
         task_result: TaskResult = None,
         external_data_path: str = "",
+        variables_path: str = "",
     ):
         policy_files = self.list_enabled_policies()
+
+        variables = None
+        if variables_path:
+            variables = self.load_variables(variables_path=variables_path)
 
         runner_jobdata_str = None
         if eval_type == EvalTypeJobdata:
             input_data_dict, runner_jobdata_str = load_input_from_jobdata(jobdata_path=jobdata_path)
         elif eval_type == EvalTypeProject:
-            input_data_dict = load_input_from_project_dir(project_dir=project_dir)
+            input_data_dict = load_input_from_project_dir(project_dir=project_dir, variables=variables)
         elif eval_type == EvalTypeTaskResult:
             input_data_dict = load_input_from_task_result(task_result=task_result)
         else:
@@ -656,6 +661,9 @@ class PolicyEvaluator(object):
             external_data_path=external_data_path,
         )
         return True, result
+
+    def load_variables(self, variables_path: str):
+        return Variables.from_variables_file(path=variables_path)
 
 
 @dataclass

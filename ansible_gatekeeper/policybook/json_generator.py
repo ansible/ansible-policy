@@ -36,7 +36,7 @@ from ansible_rulebook.exception import (
     InvalidAssignmentException,
     InvalidIdentifierException,
 )
-from policybook_models import (
+from ansible_gatekeeper.policybook.policybook_models import (
     Action,
     Condition as RuleCondition,
     Policy,

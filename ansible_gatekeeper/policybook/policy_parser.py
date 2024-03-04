@@ -1,6 +1,6 @@
 from typing import Any, Dict, List
-import policybook_models as pm
-from condition_parser import parse_condition as parse_condition_value
+import ansible_gatekeeper.policybook.policybook_models as pm
+from ansible_gatekeeper.policybook.condition_parser import parse_condition as parse_condition_value
 
 
 def parse_hosts(hosts):

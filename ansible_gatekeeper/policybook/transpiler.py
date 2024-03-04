@@ -16,15 +16,15 @@
 
 import traceback
 import yaml
-from json_generator import generate_dict_policysets
-from policy_parser import parse_policy_sets
-from rego_model import RegoPolicy, RegoFunc
 import argparse
 import os
 import glob
 import re
-from rego_templates import TemplateManager
-from json_generator import OPERATOR_MNEMONIC
+from ansible_gatekeeper.policybook.rego_templates import TemplateManager
+from ansible_gatekeeper.policybook.json_generator import OPERATOR_MNEMONIC
+from ansible_gatekeeper.policybook.json_generator import generate_dict_policysets
+from ansible_gatekeeper.policybook.policy_parser import parse_policy_sets
+from ansible_gatekeeper.policybook.rego_model import RegoPolicy, RegoFunc
 
 rego_tpl = TemplateManager()
 
@@ -38,16 +38,24 @@ class PolicyTranspiler:
         self.tmp_dir = tmp_dir
 
     def run(self, input, outdir):
+        if "extensions/policy" not in outdir:
+            outdir = os.path.join(outdir, "extensions/policy")
         os.makedirs(outdir, exist_ok=True)
         if os.path.isfile(input):
             ast = self.policybook_to_ast(input)
             self.ast_to_rego(ast, outdir)
         elif os.path.isdir(input):
-            path = f"{input}/*.yml"
-            policy_list = glob.glob(path)
+            path = f"{input}/**/*.yml"
+            policy_list = glob.glob(path, recursive=True)
             for p in policy_list:
+                outdir_for_this_policy = outdir
+                if "/post_run" in p and "/post_run" not in outdir_for_this_policy:
+                    outdir_for_this_policy = os.path.join(outdir, "post_run")
+                if "/pre_run" not in outdir_for_this_policy:
+                    outdir_for_this_policy = os.path.join(outdir, "pre_run")
+                os.makedirs(outdir_for_this_policy, exist_ok=True)
                 ast = self.policybook_to_ast(p)
-                self.ast_to_rego(ast, outdir)
+                self.ast_to_rego(ast, outdir_for_this_policy)
         else:
             raise ValueError("invalid input")
 
