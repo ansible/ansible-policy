@@ -14,27 +14,11 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import traceback
-import yaml
-from json_generator import generate_dict_policysets
-from policy_parser import parse_policy_sets
 import argparse
 import os
 import glob
-
-
-def main(ansible_policy, ast_file):
-    try:
-        with open(ansible_policy, "r") as f:
-            data = yaml.safe_load(f.read())
-            policyset = generate_dict_policysets(parse_policy_sets(data))
-        os.makedirs(os.path.dirname(ast_file), exist_ok=True)
-        with open(ast_file, "w") as f:
-            f.write(yaml.dump(policyset))
-    except Exception:
-        data = None
-        policyset = None
-        traceback.print_exc()
+import yaml
+from transpiler import PolicyTranspiler
 
 
 if __name__ == "__main__":
@@ -47,11 +31,20 @@ if __name__ == "__main__":
     ansible_policy = args.file
     ansible_policy_dir = args.dir
     output = args.output
+
+    pt = PolicyTranspiler()
     if ansible_policy:
-        main(ansible_policy, output)
+        policyset = pt.policybook_to_ast(ansible_policy)
+        os.makedirs(os.path.dirname(output), exist_ok=True)
+        with open(output, "w") as f:
+            f.write(yaml.dump(policyset))
+
     elif ansible_policy_dir:
         path = f"{ansible_policy_dir}/*.yml"
         policy_list = glob.glob(path)
         for p in policy_list:
             out_file = f"{output}/{os.path.basename(p)}"
-            main(p, out_file)
+            policyset = pt.policybook_to_ast(p)
+            os.makedirs(os.path.dirname(out_file), exist_ok=True)
+            with open(out_file, "w") as f:
+                f.write(yaml.dump(policyset))
