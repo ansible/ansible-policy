@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 """Generate condition AST from Ansible condition."""
+
 from typing import List
 
 from ansible_rulebook.condition_types import (
@@ -210,7 +211,12 @@ def generate_condition(ansible_condition: RuleCondition):
 
 def visit_policyset(policyset: PolicySet):
     """Generate JSON compatible rules."""
-    data = {"name": policyset.name, "hosts": policyset.hosts, "policies": [visit_policy(pol) for pol in policyset.policies], "vars": policyset.vars}
+    data = {
+        "name": policyset.name,
+        "hosts": policyset.hosts,
+        "policies": [visit_policy(pol) for pol in policyset.policies],
+        "vars": policyset.vars,
+    }
 
     return {"PolicySet": data}
 
