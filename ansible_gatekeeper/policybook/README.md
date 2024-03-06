@@ -1,6 +1,4 @@
-# Policybook
-
-## Policybooks
+# Policybooks
 
 Policybooks contain a list of policysets. Each policyset within a policybook
 should have a unique name. 
