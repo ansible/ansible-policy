@@ -5,7 +5,7 @@ Ansible Gatekeeper is a prototype implementation which allows us to define and s
 - Ansible knowledge base acquired from external sources such as Galaxy can be used from OPA policy.
 - Multiple policy resolution from the scanned Ansible content.
 - Policies can be packed as an ansible collection.
-- Users can define policy in Ansible YAML format (playbook). It can be auto-transformed with `gatekeeper.rego` modules.
+- Users can define policy in YAML format (policybook). It can be auto-transformed with PolicyTranspiler.
 
 <img width="992" alt="agk-arch" src="./images/agk-arch.png">
 
@@ -41,34 +41,16 @@ gatekeeper.rego:0.0.1 was installed successfully
 ```
 -->
 
-### 4. Generate Rego policies from Policybook
+### 4. Prepare Policybook
 As examples, the following policybooks can be found in the `examples/org_wide_policies` directory. 
 
 -  `check_package_policy` [yml](./examples/org_wide_policies/compliance/policybooks/check_pkg.yml): Check if only authorized packages are installed.
 - `check_collection_policy` [yml](./examples/org_wide_policies/compliance/policybooks/check_collection.yml): Check if only authorized collections are used
 - `check_become_policy` [yml](./examples/org_wide_policies/compliance/policybooks/check_become.yml): check if `become: true` is used and check if only `trusted user` is used
 
-In order to be evaluated by Ansible Gatekeeper, Policybooks should be converted to Rego policy.
-Policybook can be automatically transpiled into `AST` and `Rego` policy with the commands below.
+Ansible-gatekeeper transpile these policybooks into OPA policy automatically and evaluate the policies.
 
-1. transform to AST
-```
-$ python ansible_gatekeeper/policybook/to_ast.py -d examples/org_wide_policies/compliance/policybooks -o examples/org_wide_policies/compliance/ast
-```
-2. transform to Rego
-```
-$ python ansible_gatekeeper/policybook/to_rego.py -d examples/org_wide_policies/compliance/ast -o examples/org_wide_policies/compliance/policies
-```
-
-
-Now, we have 3 policies written in Rego.
-```
-$ tree examples/org_wide_policies/compliance/policies                                          
-examples/org_wide_policies/compliance/policies
-├── Check_for_collection_name.rego
-├── Check_for_package_name.rego
-└── Check_for_using_become_in_task.rego
-```
+See this [doc](./ansible_gatekeeper/policybook/README.md) about Policybook specification.
 
 ### 5. Configure policies
 
@@ -89,10 +71,7 @@ policies.org.compliance    = examples/org_wide_policies/compliance    # org-wide
 
 `source` field is a list of module packages and their source like ansible-galaxy or local directory. ansible-gatekeeper installs policies based on this configuration.
 
-The example above is configured to enable the follwoing 3 `rego` policies, which we generated in **step 4**.
-- [check_package_policy](./examples/org_wide_policies/compliance/policies/Check_for_package_name.rego)
-- [check_collection_policy](./examples/org_wide_policies/compliance/policies/Check_for_collection_name.rego)
-- [check_become_policy](./examples/org_wide_policies/compliance/policies/Check_for_using_become_in_task.rego)
+The example above is configured to enable the 3 policies in step 4.
 
 <!-- - `mongodb_user_db_policy` ([yaml](./examples/collection_policies/policies.community_mongodb/policies/check_database_name.yml), [rego](./examples/collection_policies/policies.community_mongodb/policies/check_database_name_generated.rego)): check if a database name which is used in the task is allowed or not, for tasks using `community.mongodb.mongodb_user`.
 - `check_become_policy` ([yaml](./examples/org_wide_policies/compliance/policies/check_become.yml), [rego](./examples/org_wide_policies/compliance/policies/check_become_generated.rego)): check if `become: true` is used or not for all tasks -->

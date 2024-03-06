@@ -17,3 +17,14 @@
             msg: privilage escalation is detected. allowed users are one of {{ allowed_users }}
       tags:
         - compliance
+    - name: Check for using become in play
+      target: play
+      condition: 
+        any:
+        - input.become == true and input.become_user not in allowed_users
+        - input.become == true and input lacks key become_user
+      actions:
+        - deny:
+            msg: privilage escalation is detected. allowed users are one of {{ allowed_users }}
+      tags:
+        - compliance
