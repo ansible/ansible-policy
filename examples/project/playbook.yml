@@ -11,7 +11,8 @@
     security_group: "your_security_group_id"
     subnet_id: "your_subnet_id"
     mysql_root_password: "your_mysql_root_password"
-
+    package_list:
+    - malicious-app
   tasks:
     - name: Create EC2 instance
       amazon.aws.ec2_instance:
@@ -28,15 +29,9 @@
           Name: "MySQLInstance"
       register: ec2
 
-    - name: Install nginx [installing unauthorized pkg]
-      ansible.builtin.package:
-        name: "nginx"
-        state: present
-      become: True
-
     - name: Install MySQL server
       ansible.builtin.package:
-        name: "mysql-server"
+        name: "{{ package_list }}"
         state: present
 
     - name: Set MySQL root password [using unauthorized collection]
