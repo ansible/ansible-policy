@@ -17,6 +17,7 @@ def main():
     parser.add_argument("-v", "--variables", default="", help="filepath to variables JSON data")
     parser.add_argument("-j", "--jobdata", help="alternative way to load jobdata from a file instead of stdin")
     parser.add_argument("-c", "--config", help="path to config file which configures policies to be evaluated")
+    parser.add_argument("--policy-dir", help="path to a directory containing policies to be evaluated")
     parser.add_argument("-f", "--format", default="plain", help="output format (`plain` or `json`, default to `plain`)")
     args = parser.parse_args()
 
@@ -26,6 +27,7 @@ def main():
     variables_path = args.variables
     jobdata_path = args.jobdata
     config_path = args.config
+    policy_dir = args.policy_dir
     _format = args.format
 
     if _format not in supported_formats:
@@ -36,7 +38,7 @@ def main():
 
     runner_jobdata_str = None
 
-    evaluator = PolicyEvaluator(config_path=config_path)
+    evaluator = PolicyEvaluator(config_path=config_path, policy_dir=policy_dir)
 
     result, runner_jobdata_str = evaluator.run(
         eval_type=eval_type,
