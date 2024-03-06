@@ -8,6 +8,7 @@ import yaml
 from dataclasses import dataclass, field
 from typing import List, Dict
 from ansible.executor.task_result import TaskResult as AnsibleTaskResult
+from ansible.playbook.task import Task as AnsibleTask
 from ansible.parsing.yaml.objects import AnsibleUnicode
 
 from ansible_gatekeeper.utils import (
@@ -483,7 +484,8 @@ class TaskResult(AnsibleTaskResult):
                 setattr(task_result, key, val)
 
         task = task_result._task
-        filepath = list(task._loader._FILE_CACHE.keys())[0]
+        assert isinstance(task, AnsibleTask)
+        filepath = task.name._data_source
         task_result.filepath = filepath
         return task_result
 
@@ -609,16 +611,14 @@ class PolicyInput(object):
         parent = task._parent
         play = parent._play
         variable_manager = play._variable_manager
-        fact_cache = variable_manager._fact_cache
+        # fact_cache = variable_manager._fact_cache
         extra_vars = variable_manager._extra_vars
-        plugin = fact_cache._plugin
-        facts = plugin._cache
-        np_fact_cache = variable_manager._nonpersistent_fact_cache
-        variables = {
-            "extra_vars": task_result_vars2dict(extra_vars),
-            "facts": facts,
-            "runtime_vars": np_fact_cache,
-        }
+        # plugin = fact_cache._plugin
+        # facts = plugin._cache
+        # np_fact_cache = variable_manager._nonpersistent_fact_cache
+        variables = {}
+        _extra_vars = task_result_vars2dict(extra_vars)
+        variables.update(_extra_vars)
 
         p_input = PolicyInput()
         p_input.type = InputTypeTaskResult
@@ -643,6 +643,9 @@ class PolicyInput(object):
             elif self.type == InputTypePlay:
                 data = self.play.options
             elif self.type == InputTypeTaskResult:
+                module_options = task_fields2module_options(self.task_result._task_fields)
+                data.update(module_options)
+                data = recursive_resolve_variable(data, self.variables)
                 data["variables"] = self.variables
         except Exception:
             pass
@@ -668,6 +671,25 @@ class PolicyInput(object):
     def object(self):
         obj = getattr(self, self.type, None)
         return obj
+
+
+def task_fields2module_options(task_fields: dict):
+    task_action = task_fields.get("action", None)
+    if not task_action:
+        return {}
+    if isinstance(task_action, AnsibleUnicode):
+        task_action = str(task_action)
+
+    module_args = task_fields.get("args", {})
+    if not module_args or not isinstance(module_args, dict):
+        return {task_action: {}}
+
+    module_options = {}
+    for key, val in module_args.items():
+        if isinstance(val, AnsibleUnicode):
+            val = str(val)
+        module_options[key] = val
+    return {task_action: module_options}
 
 
 def recursive_resolve_single_var(txt: str, variables: dict):

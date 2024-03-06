@@ -505,6 +505,7 @@ class EvaluationResult(object):
 @dataclass
 class PolicyEvaluator(object):
     config_path: str = ""
+    policy_dir: str = ""
     root_dir: str = ""
     need_cleanup: bool = False
 
@@ -518,6 +519,12 @@ class PolicyEvaluator(object):
             cfg = Config.load(filepath=self.config_path)
             self.patterns = cfg.policy.patterns
             self.sources = cfg.source.sources
+        elif self.policy_dir:
+            policy_name = "policy"
+            pattern = PolicyPattern(name=policy_name, enabled=True)
+            self.patterns.append(pattern)
+            source = Source(name=policy_name, source=self.policy_dir, type="path")
+            self.sources.append(source)
 
         if not self.root_dir:
             tmp_dir = tempfile.TemporaryDirectory()
@@ -648,7 +655,10 @@ class PolicyEvaluator(object):
         return result, runner_jobdata_str
 
     def eval_single_policy(self, rego_path: str, input_type: str, input_data: PolicyInput, external_data_path: str) -> tuple[bool, str]:
-        if not match_target_type(target_type=input_type, rego_path=rego_path):
+        target_type = input_type
+        if input_type == "task_result":
+            target_type = "task"
+        if not match_target_type(target_type=target_type, rego_path=rego_path):
             return False, {}
         if input_type == "task":
             task = input_data.task

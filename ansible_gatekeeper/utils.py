@@ -76,7 +76,7 @@ def eval_opa_policy(rego_path: str, input_data: str, external_data_path: str, ex
         text=True,
     )
     logger.debug(f"command: {cmd_str}")
-    # logger.debug(f"proc.input_data: {input_data}")
+    logger.debug(f"proc.input_data: {input_data}")
     logger.debug(f"proc.stdout: {proc.stdout}")
     logger.debug(f"proc.stderr: {proc.stderr}")
 
