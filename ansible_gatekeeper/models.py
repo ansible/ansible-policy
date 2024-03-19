@@ -15,6 +15,7 @@ from ansible_gatekeeper.rego_data import (
     load_input_from_jobdata,
     load_input_from_project_dir,
     load_input_from_task_result,
+    load_input_from_event_dir,
     process_input_data_with_external_data,
 )
 from ansible_gatekeeper.policybook.transpiler import PolicyTranspiler
@@ -46,6 +47,7 @@ default_policy_install_dir = "/tmp/ansible-gatekeeper/installed_policies"
 EvalTypeJobdata = "jobdata"
 EvalTypeProject = "project"
 EvalTypeTaskResult = "task_result"
+EvalTypeEvent = "event"
 
 
 @dataclass
@@ -261,6 +263,10 @@ class CodeBlock(object):
             block.begin = line_dict["begin"]
             block.end = line_dict["end"]
             return block
+        elif "begin" in line_dict:
+            block = cls()
+            block.begin = line_dict["begin"]
+            return block
 
         raise ValueError(f"failed to construct a CodeBlock from the dict `{line_dict}`")
 
@@ -268,10 +274,12 @@ class CodeBlock(object):
         if not isinstance(self.begin, int):
             raise ValueError("`begin` is not found for this code block")
 
-        if not isinstance(self.end, int):
-            raise ValueError("`end` is not found for this code block")
-
-        return f"L{self.begin}-{self.end}"
+        if self.begin is not None and self.end is not None:
+            return f"L{self.begin}-{self.end}"
+        elif self.begin is not None:
+            return f"L{self.begin}"
+        else:
+            return ""
 
     def to_dict(self):
         return {"begin": self.begin, "end": self.end}
@@ -384,6 +392,8 @@ class FileResult(object):
     violation: bool = False
     policies: List[PolicyResult] = field(default_factory=list)
 
+    target_filepath: str = None
+
     def add_policy_result(
         self,
         eval_result: dict,
@@ -473,12 +483,16 @@ class EvaluationResult(object):
         target_type: str,
         obj: any,
         filepath: str,
+        target_filepath: str,
         lines: dict,
     ):
         file_result = self.get_file_result(filepath=filepath)
         need_append = False
         if not file_result:
-            file_result = FileResult(path=filepath)
+            file_result = FileResult(
+                path=filepath,
+                target_filepath=target_filepath,
+            )
             need_append = True
 
         file_result.add_policy_result(
@@ -581,6 +595,7 @@ class PolicyEvaluator(object):
         self,
         eval_type: str = "project",
         project_dir: str = "",
+        event_dir: str = "",
         jobdata_path: str = "",
         task_result: TaskResult = None,
         external_data_path: str = "",
@@ -599,6 +614,8 @@ class PolicyEvaluator(object):
             input_data_dict = load_input_from_project_dir(project_dir=project_dir, variables=variables)
         elif eval_type == EvalTypeTaskResult:
             input_data_dict = load_input_from_task_result(task_result=task_result)
+        elif eval_type == EvalTypeEvent:
+            input_data_dict = load_input_from_event_dir(event_dir=event_dir)
         else:
             raise ValueError(f"eval_type `{eval_type}` is not supported")
 
@@ -626,12 +643,23 @@ class PolicyEvaluator(object):
 
                 lines = None
                 body = ""
-                with open(filepath, "r") as f:
-                    body = f.read()
-                if input_type in ["task", "play"]:
-                    _identifier = LineIdentifier()
-                    block = _identifier.find_block(body=body, obj=single_input_data.object)
-                    lines = block.to_dict()
+                target_filepath = ""
+                if eval_type == EvalTypeEvent:
+                    _e = single_input_data.object
+                    lines = {
+                        "begin": _e.line,
+                        "end": None,
+                    }
+                    task_path = _e.event_data.get("task_path", "")
+                    if task_path:
+                        target_filepath = task_path.rsplit(":", 1)[0]
+                else:
+                    with open(filepath, "r") as f:
+                        body = f.read()
+                    if input_type in ["task", "play"]:
+                        _identifier = LineIdentifier()
+                        block = _identifier.find_block(body=body, obj=single_input_data.object)
+                        lines = block.to_dict()
 
                 for policy_path in policy_files:
                     policy_name = get_rego_main_package_name(rego_path=policy_path)
@@ -649,6 +677,7 @@ class PolicyEvaluator(object):
                         target_type=target_type,
                         obj=single_input_data.object,
                         filepath=filepath,
+                        target_filepath=target_filepath,
                         lines=lines,
                     )
 
@@ -692,15 +721,20 @@ class ResultFormatter(object):
         not_validated_targets = []
         for f in result.files:
             filepath = f.path
+            target_filepath = f.target_filepath
             for p in f.policies:
                 for t in p.targets:
                     if isinstance(t.validated, bool) and not t.validated:
+                        lines = (None,)
+                        if t.lines:
+                            lines = CodeBlock.dict2str(t.lines)
                         detail = {
                             "type": p.target_type,
                             "name": t.name,
                             "policy_name": p.policy_name,
                             "filepath": filepath,
-                            "lines": CodeBlock.dict2str(t.lines),
+                            "target_filepath": target_filepath,
+                            "lines": lines,
                             "message": t.message,
                         }
                         not_validated_targets.append(detail)
@@ -712,6 +746,7 @@ class ResultFormatter(object):
             name = d.get("name", "")
             policy_name = d.get("policy_name", "")
             filepath = d.get("filepath", "")
+            target_filepath = d.get("target_filepath", "")
             lines = d.get("lines", "")
             message = d.get("message", "").strip()
             _list = violation_per_type.get(_type, [])
@@ -720,6 +755,8 @@ class ResultFormatter(object):
                 violation_per_type[_type] = _list + [pattern]
 
             file_info = f"{filepath} {lines}"
+            if target_filepath:
+                file_info = f"{target_filepath} {lines}"
             if self.isatty:
                 file_info = f"\033[93m{file_info}\033[00m"
             header = f"{_type_up} [{name}] {file_info} ".ljust(self.term_width, "*")
