@@ -4,6 +4,7 @@ import re
 import glob
 import tempfile
 import jsonpickle
+import shutil
 from dataclasses import dataclass, field
 from typing import List, Union
 from ansible.executor.task_result import TaskResult
@@ -720,7 +721,7 @@ class ResultFormatter(object):
         if self.isatty is None:
             self.isatty = sys.stdout.isatty()
         if self.term_width is None:
-            self.term_width = os.get_terminal_size().columns
+            self.term_width = shutil.get_terminal_size().columns
         return
 
     def print(self, result: EvaluationResult):
