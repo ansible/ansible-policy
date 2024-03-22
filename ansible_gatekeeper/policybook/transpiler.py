@@ -45,8 +45,15 @@ class PolicyTranspiler:
             ast = self.policybook_to_ast(input)
             self.ast_to_rego(ast, outdir)
         elif os.path.isdir(input):
-            path = f"{input}/**/*.yml"
-            policy_list = glob.glob(path, recursive=True)
+            pattern1 = f"{input}/**/policies/**/*.yml"
+            pattern2 = f"{input}/**/extensions/policy/**/*.yml"
+            policy_list = []
+            _found = glob.glob(pattern1, recursive=True)
+            if _found:
+                policy_list.extend(_found)
+            _found = glob.glob(pattern2, recursive=True)
+            if _found:
+                policy_list.extend(_found)
             for p in policy_list:
                 outdir_for_this_policy = outdir
                 if "/post_run" in p and "/post_run" not in outdir_for_this_policy:
