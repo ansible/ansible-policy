@@ -1,0 +1,16 @@
+# check_changed_event.yml
+---
+- name: Check for job event with changed & ufw
+  hosts: localhost
+  policies:
+    - name: Check for event with changed
+      target: event
+      condition:
+        all:
+          - input.event_data.resolved_action == "community.general.ufw"
+          - input.event_data.changed
+      actions:
+        - deny:
+            msg: "`Changed` event is detected for a `community.general.ufw` task"
+      tags:
+        - compliance
