@@ -153,7 +153,35 @@ cat /tmp/agk-result.json | jq .files[0].policies[1].targets[1]
 ```
 
 
-```
-NOTE: Only first time you run the command above, ansible-gatekeeper installs policy files based on the configuration.
-      If you changed your policy files, please reinstall them by removing the installed policies manually. They are installed `/tmp/ansible-gatekeeper/installed_policies` by default.
+## Policy check for Event streams
+
+Ansible Gatekeeper supports policy checks for runtime events output from `ansible-runner`.
+
+ansible-runner generates the events while playbook execution. For example, "playbook_on_start" is an event at the start of the playbook execution, and "runner_on_ok" is the one for a task that is completed successfully.
+
+[event_handler.py](ansible_gatekeeper/event_handler.py) is a reference implementation to handle these runner events that are input by standard input and it outputs policy evaluation results to standard output like the following image.
+
+
+<img src="images/example_output_event_stream.png" width="600px">
+
+In the example above, a policybook [here](examples/sample_policybooks/compliance/policybooks/check_changed_event.yml) is used.
+
+An event JSON data and its attributes are accessible by `input.xxxx` in the policybook condition field.
+
+For example, the `changed` status of a task is `input.event_data.changed`, so the example policy is checking if `input.event_data.changed` as one of the conditions.
+
+You can implement your policy conditions by using `input.xxxx`.
+
+Also, you can use `event_handler.py`, in particular, the code block below to implement your event handler depending on the way to receive events.
+
+```python
+    evaluator = PolicyEvaluator(policy_dir="/path/to/your_policy_dir")
+    formatter = ResultFormatter(format_type="event_stream")
+    # `load_event()` here should be replaced with your generator to read a single event
+    for event in load_event():
+        result = evaluator.run(
+            eval_type="event",
+            event=event,
+        )
+        formatter.print(result)
 ```
