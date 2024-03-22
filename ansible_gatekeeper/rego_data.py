@@ -2,7 +2,6 @@ import os
 import sys
 import copy
 import tempfile
-import glob
 import jsonpickle
 import json
 import yaml
@@ -145,8 +144,8 @@ def load_input_from_task_result(task_result: AnsibleTaskResult = None):
     return policy_input
 
 
-def load_input_from_event_dir(event_dir: str = ""):
-    policy_input = make_policy_input_for_events(event_dir=event_dir)
+def load_input_from_event(event: dict = {}):
+    policy_input = make_policy_input_for_event(event=event)
     return policy_input
 
 
@@ -503,21 +502,18 @@ class Event(object):
     line: int = ""
     event_type: str = ""
 
-    target_filepath: str = ""
-
     uuid: str = None
     stdout: str = None
     event_data: dict = field(default_factory=dict)
 
     name: str = ""
 
-    @staticmethod
-    def from_ansible_jobevent(event_path: str):
-        event_dict = None
-        with open(event_path, "r") as f:
-            event_dict = json.load(f)
+    task_path: str = ""
 
+    @staticmethod
+    def from_ansible_jobevent(event: dict):
         _event = Event()
+        event_dict = event
         if event_dict and isinstance(event_dict, dict):
             for key, val in event_dict.items():
                 if hasattr(_event, key):
@@ -525,21 +521,21 @@ class Event(object):
 
         event_type = event_dict.get("event", "")
         task_path = event_dict.get("event_data", {}).get("task_path", "")
-        target_filepath = ""
+        filepath = ""
         task_line = None
         try:
-            target_filepath = task_path.rsplit(":")[0]
+            filepath = task_path.rsplit(":")[0]
             _parts = task_path.split(":")
             if len(_parts) > 1 and _parts[-1] != "":
                 _line_num = _parts[-1]
                 task_line = int(_line_num)
         except Exception:
             pass
-        _event.filepath = event_path
-        _event.target_filepath = target_filepath
+        _event.filepath = filepath
         _event.line = task_line
         _event.event_type = event_type
         _event.name = event_type
+        _event.task_path = task_path
         return _event
 
 
@@ -681,27 +677,13 @@ class PolicyInput(object):
         return [p_input]
 
     @staticmethod
-    def from_event_dir(event_dir: str = ""):
-        event_files = glob.glob(os.path.join(event_dir, "**", "*.json"), recursive=True)
-        if not event_files:
-            return []
-
-        def toint(txt: str):
-            try:
-                return int(txt)
-            except Exception:
-                return 100000
-
-        # event file name matters to determine the input list order
-        event_files = sorted(event_files, key=lambda x: toint(x.split("/")[-1].split("-")[0]))
-
+    def from_event(event: dict = ""):
         p_input_list = []
-        for event_file in event_files:
-            event = Event.from_ansible_jobevent(event_path=event_file)
-            p_input = PolicyInput()
-            p_input.type = InputTypeEvent
-            p_input.event = event
-            p_input_list.append(p_input)
+        event = Event.from_ansible_jobevent(event=event)
+        p_input = PolicyInput()
+        p_input.type = InputTypeEvent
+        p_input.event = event
+        p_input_list.append(p_input)
         return p_input_list
 
     def to_object_json(self, **kwargs):
@@ -927,8 +909,8 @@ def make_policy_input_for_task_result(task_result: TaskResult = None) -> Dict[st
     return policy_input
 
 
-def make_policy_input_for_events(event_dir: str = "") -> Dict[str, List[PolicyInput]]:
-    policy_input_event = PolicyInput.from_event_dir(event_dir=event_dir)
+def make_policy_input_for_event(event: dict = {}) -> Dict[str, List[PolicyInput]]:
+    policy_input_event = PolicyInput.from_event(event=event)
     policy_input = {
         "event": policy_input_event,
     }

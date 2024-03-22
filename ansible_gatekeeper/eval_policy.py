@@ -1,22 +1,46 @@
 import os
-import jsonpickle
+import json
 import argparse
 from ansible_gatekeeper.models import (
     PolicyEvaluator,
     ResultFormatter,
+    supported_formats,
 )
 
 
-FORMAT_PLAIN = "plain"
-FORMAT_JSON = "json"
-supported_formats = [FORMAT_PLAIN, FORMAT_JSON]
+def eval_policy(
+    eval_type: str,
+    project_dir: str = None,
+    event: dict = None,
+    variables_path: str = None,
+    jobdata_path: str = None,
+    config_path: str = None,
+    policy_dir: str = None,
+    external_data_path: str = None,
+):
+
+    if not external_data_path:
+        external_data_path = os.path.join(os.path.dirname(__file__), "galaxy_data.json")
+
+    evaluator = PolicyEvaluator(config_path=config_path, policy_dir=policy_dir)
+    result = evaluator.run(
+        eval_type=eval_type,
+        project_dir=project_dir,
+        event=event,
+        jobdata_path=jobdata_path,
+        external_data_path=external_data_path,
+        variables_path=variables_path,
+    )
+    return result
 
 
 def main():
     parser = argparse.ArgumentParser(description="TODO")
     parser.add_argument("-t", "--type", default="project", help="policy evaluation type (`jobdata`, `project` or `event`)")
     parser.add_argument("-p", "--project-dir", help="target project directory for project type")
-    parser.add_argument("-e", "--event-dir", help="target event JSON directory output by ansible-runner")
+    # The `--event-file` argument here is just for debugging
+    # Actual events should be handled by `event_handler.py` instead
+    parser.add_argument("-e", "--event-file", help="target event JSON file output by ansible-runner")
     parser.add_argument("-v", "--variables", default="", help="filepath to variables JSON data")
     parser.add_argument("-j", "--jobdata", help="alternative way to load jobdata from a file instead of stdin")
     parser.add_argument("-c", "--config", help="path to config file which configures policies to be evaluated")
@@ -25,47 +49,25 @@ def main():
     parser.add_argument("-f", "--format", default="plain", help="output format (`plain` or `json`, default to `plain`)")
     args = parser.parse_args()
 
-    eval_type = args.type
-    project_dir = args.project_dir
-    event_dir = args.event_dir
-    variables_path = args.variables
-    jobdata_path = args.jobdata
-    config_path = args.config
-    policy_dir = args.policy_dir
-    external_data_path = args.external_data
-    _format = args.format
+    if args.format not in supported_formats:
+        raise ValueError(f"The format type `{args.format}` is not supported; it must be one of {supported_formats}")
 
-    if _format not in supported_formats:
-        raise ValueError(f"The format type `{_format}` is not supported; it must be one of {supported_formats}")
+    event = None
+    if args.event_file:
+        with open(args.event_file, "r") as f:
+            event = json.load(f)
 
-    if not external_data_path:
-        external_data_path = os.path.join(os.path.dirname(__file__), "galaxy_data.json")
-
-    runner_jobdata_str = None
-
-    evaluator = PolicyEvaluator(config_path=config_path, policy_dir=policy_dir)
-
-    result, runner_jobdata_str = evaluator.run(
-        eval_type=eval_type,
-        project_dir=project_dir,
-        event_dir=event_dir,
-        jobdata_path=jobdata_path,
-        external_data_path=external_data_path,
-        variables_path=variables_path,
+    result = eval_policy(
+        eval_type=args.type,
+        project_dir=args.project_dir,
+        event=event,
+        variables_path=args.variables,
+        jobdata_path=args.jobdata,
+        config_path=args.config,
+        policy_dir=args.policy_dir,
+        external_data_path=args.external_data,
     )
-
-    # if json format is specified, output the result object in json to stdout
-    if _format == FORMAT_JSON:
-        json_str = jsonpickle.encode(
-            result,
-            unpicklable=False,
-            make_refs=False,
-            separators=(",", ":"),
-        )
-        print(json_str)
-    else:
-        # otherwise, show the summary text
-        ResultFormatter().print(result=result)
+    ResultFormatter(format_type=args.format).print(result=result)
 
 
 if __name__ == "__main__":

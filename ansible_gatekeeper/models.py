@@ -3,6 +3,7 @@ import sys
 import re
 import glob
 import tempfile
+import jsonpickle
 from dataclasses import dataclass, field
 from typing import List, Union
 from ansible.executor.task_result import TaskResult
@@ -15,7 +16,7 @@ from ansible_gatekeeper.rego_data import (
     load_input_from_jobdata,
     load_input_from_project_dir,
     load_input_from_task_result,
-    load_input_from_event_dir,
+    load_input_from_event,
     process_input_data_with_external_data,
 )
 from ansible_gatekeeper.policybook.transpiler import PolicyTranspiler
@@ -48,6 +49,11 @@ EvalTypeJobdata = "jobdata"
 EvalTypeProject = "project"
 EvalTypeTaskResult = "task_result"
 EvalTypeEvent = "event"
+
+FORMAT_PLAIN = "plain"
+FORMAT_EVENT_STREAM = "event_stream"
+FORMAT_JSON = "json"
+supported_formats = [FORMAT_PLAIN, FORMAT_EVENT_STREAM, FORMAT_JSON]
 
 
 @dataclass
@@ -391,8 +397,7 @@ class FileResult(object):
     path: str = None
     violation: bool = False
     policies: List[PolicyResult] = field(default_factory=list)
-
-    target_filepath: str = None
+    metadata: dict = field(default_factory=dict)
 
     def add_policy_result(
         self,
@@ -483,15 +488,15 @@ class EvaluationResult(object):
         target_type: str,
         obj: any,
         filepath: str,
-        target_filepath: str,
         lines: dict,
+        metadata: dict = {},
     ):
         file_result = self.get_file_result(filepath=filepath)
         need_append = False
         if not file_result:
             file_result = FileResult(
                 path=filepath,
-                target_filepath=target_filepath,
+                metadata=metadata,
             )
             need_append = True
 
@@ -595,7 +600,7 @@ class PolicyEvaluator(object):
         self,
         eval_type: str = "project",
         project_dir: str = "",
-        event_dir: str = "",
+        event: dict = "",
         jobdata_path: str = "",
         task_result: TaskResult = None,
         external_data_path: str = "",
@@ -607,15 +612,14 @@ class PolicyEvaluator(object):
         if variables_path:
             variables = self.load_variables(variables_path=variables_path)
 
-        runner_jobdata_str = None
         if eval_type == EvalTypeJobdata:
-            input_data_dict, runner_jobdata_str = load_input_from_jobdata(jobdata_path=jobdata_path)
+            input_data_dict, _ = load_input_from_jobdata(jobdata_path=jobdata_path)
         elif eval_type == EvalTypeProject:
             input_data_dict = load_input_from_project_dir(project_dir=project_dir, variables=variables)
         elif eval_type == EvalTypeTaskResult:
             input_data_dict = load_input_from_task_result(task_result=task_result)
         elif eval_type == EvalTypeEvent:
-            input_data_dict = load_input_from_event_dir(event_dir=event_dir)
+            input_data_dict = load_input_from_event(event=event)
         else:
             raise ValueError(f"eval_type `{eval_type}` is not supported")
 
@@ -643,16 +647,15 @@ class PolicyEvaluator(object):
 
                 lines = None
                 body = ""
-                target_filepath = ""
+                metadata = {}
                 if eval_type == EvalTypeEvent:
                     _e = single_input_data.object
                     lines = {
                         "begin": _e.line,
                         "end": None,
                     }
-                    task_path = _e.event_data.get("task_path", "")
-                    if task_path:
-                        target_filepath = task_path.rsplit(":", 1)[0]
+                    filepath = single_input_data.object.uuid
+                    metadata = single_input_data.object.__dict__
                 else:
                     with open(filepath, "r") as f:
                         body = f.read()
@@ -677,11 +680,11 @@ class PolicyEvaluator(object):
                         target_type=target_type,
                         obj=single_input_data.object,
                         filepath=filepath,
-                        target_filepath=target_filepath,
                         lines=lines,
+                        metadata=metadata,
                     )
 
-        return result, runner_jobdata_str
+        return result
 
     def eval_single_policy(self, rego_path: str, input_type: str, input_data: PolicyInput, external_data_path: str) -> tuple[bool, str]:
         target_type = input_type
@@ -707,10 +710,13 @@ class PolicyEvaluator(object):
 
 @dataclass
 class ResultFormatter(object):
+    format_type: str = None
     isatty: bool = None
     term_width: int = None
 
     def __post_init__(self):
+        if self.format_type is None or self.format_type not in supported_formats:
+            raise ValueError(f"`format_type` must be one of {supported_formats}, " "but received {self.format_type}")
         if self.isatty is None:
             self.isatty = sys.stdout.isatty()
         if self.term_width is None:
@@ -718,10 +724,58 @@ class ResultFormatter(object):
         return
 
     def print(self, result: EvaluationResult):
+        if self.format_type == FORMAT_EVENT_STREAM:
+            self.print_event_stream(result)
+        elif self.format_type == FORMAT_JSON:
+            self.print_json(result)
+        elif self.format_type == FORMAT_PLAIN:
+            self.print_plain(result)
+
+    def print_event_stream(self, result: EvaluationResult):
+        if not result.files:
+            return
+        file_result = result.files[0]
+        if not file_result.policies:
+            return
+
+        policy_result = file_result.policies[0]
+        if not policy_result.targets:
+            return
+        target_result = policy_result.targets[0]
+
+        task_path = file_result.metadata.get("task_path", "")
+
+        event_type = target_result.name
+        _uuid = file_result.path
+        short_uuid = _uuid[:4] + "..." + _uuid[-4:]
+        file_info = task_path
+        file_info = f"\033[93m{file_info}\033[00m"
+        event_name = f"{event_type} {short_uuid}"
+        _violated = "\033[91mViolation\033[00m" if file_result.violation else "\033[96mPass\033[00m"
+        _msg = ""
+        if policy_result.violation:
+            _msg += target_result.message.strip()
+        max_message_length = 120
+        if len(_msg) > max_message_length:
+            _msg = _msg[:max_message_length] + "..."
+        if _msg:
+            _msg = f"\n    \033[90m{_msg}\033[00m"
+        _line = f"Event [{event_name}] {file_info} {_violated} {_msg}"
+        print(_line)
+
+    def print_json(self, result: EvaluationResult):
+        json_str = jsonpickle.encode(
+            result,
+            unpicklable=False,
+            make_refs=False,
+            separators=(",", ":"),
+        )
+        print(json_str)
+
+    def print_plain(self, result: EvaluationResult):
         not_validated_targets = []
         for f in result.files:
             filepath = f.path
-            target_filepath = f.target_filepath
             for p in f.policies:
                 for t in p.targets:
                     if isinstance(t.validated, bool) and not t.validated:
@@ -733,7 +787,6 @@ class ResultFormatter(object):
                             "name": t.name,
                             "policy_name": p.policy_name,
                             "filepath": filepath,
-                            "target_filepath": target_filepath,
                             "lines": lines,
                             "message": t.message,
                         }
@@ -746,7 +799,6 @@ class ResultFormatter(object):
             name = d.get("name", "")
             policy_name = d.get("policy_name", "")
             filepath = d.get("filepath", "")
-            target_filepath = d.get("target_filepath", "")
             lines = d.get("lines", "")
             message = d.get("message", "").strip()
             _list = violation_per_type.get(_type, [])
@@ -755,8 +807,6 @@ class ResultFormatter(object):
                 violation_per_type[_type] = _list + [pattern]
 
             file_info = f"{filepath} {lines}"
-            if target_filepath:
-                file_info = f"{target_filepath} {lines}"
             if self.isatty:
                 file_info = f"\033[93m{file_info}\033[00m"
             header = f"{_type_up} [{name}] {file_info} ".ljust(self.term_width, "*")
