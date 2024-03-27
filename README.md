@@ -42,11 +42,11 @@ gatekeeper.rego:0.0.1 was installed successfully
 -->
 
 ### 4. Prepare Policybook
-As examples, the following policybooks can be found in the `examples/org_wide_policies` directory. 
+As examples, the following policybooks can be found in the `examples/check_project/policies` directory. 
 
--  `check_package_policy` [yml](./examples/org_wide_policies/compliance/policybooks/check_pkg.yml): Check if only authorized packages are installed.
-- `check_collection_policy` [yml](./examples/org_wide_policies/compliance/policybooks/check_collection.yml): Check if only authorized collections are used
-- `check_become_policy` [yml](./examples/org_wide_policies/compliance/policybooks/check_become.yml): check if `become: true` is used and check if only `trusted user` is used
+-  `check_package_policy` [yml](./examples/check_project/policies/check_pkg.yml): Check if only authorized packages are installed.
+- `check_collection_policy` [yml](./examples/check_project/policies/check_collection.yml): Check if only authorized collections are used
+- `check_become_policy` [yml](./examples/check_project/policies/check_become.yml): check if `become: true` is used and check if only `trusted user` is used
 
 Ansible-gatekeeper transpile these policybooks into OPA policy automatically and evaluate the policies.
 
@@ -62,9 +62,7 @@ default disabled
 policies.org.compliance   tag=compliance  enabled
 
 [source]
-# policies.community.mongodb = policies.community_mongodb:0.0.1     # collection policy (ansible-galaxy)
-# policies.community.mongodb = examples/policies-community_mongodb-0.0.1.tar.gz   # collection policy (local tarball)
-policies.org.compliance    = examples/org_wide_policies/compliance    # org-wide compliance policy
+policies.org.compliance    = examples/check_project    # org-wide compliance policy
 ```
 
 `policy` field is a configuration like iptable to enable/disable installed policies. Users can use tag for configuring this in detail.
@@ -80,12 +78,12 @@ You can use [the example config file](examples/ansible-gatekeeper.cfg) for the n
 
 ### 6. Running policy evaluation on a playbook
 
-[The example playbook](examples/project/playbook.yml) has some tasks that violate the 3 policies above.
+[The example playbook](examples/check_project/playbook.yml) has some tasks that violate the 3 policies above.
 
 ansible-gatekeeper can report these violations like the following.
 
 ```bash
-$ ansible-gatekeeper -p examples/project/playbook.yml -c examples/ansible-gatekeeper.cfg
+$ ansible-gatekeeper -p examples/check_project/playbook.yml -c examples/ansible-gatekeeper.cfg
 ```
 
 <img src="images/example_output_policybook.png" width="600px">
@@ -93,15 +91,15 @@ $ ansible-gatekeeper -p examples/project/playbook.yml -c examples/ansible-gateke
 
 From the result, you can see the details on violations.
 
-- [The task "Install nginx"](examples/project/playbook.yml#L30) is installing a package `nginx` with a root permission by using `become: true`. Nginx is not listed in the allowed packages and this is detected by the `check_package_policy`. Also privilege escalation is detected by the `check_become_policy`.
+- [The task "Install nginx"](examples/check_project/playbook.yml#L30) is installing a package `nginx` with a root permission by using `become: true`. Nginx is not listed in the allowed packages and this is detected by the `check_package_policy`. Also privilege escalation is detected by the `check_become_policy`.
 
-- [The task "Set MySQL root password"](examples/project/playbook.yml#L41) is using a collection `community.mysql` which is not in the allowed list, and this is detected by the policy `check_collection_policy`.
+- [The task "Set MySQL root password"](examples/check_project/playbook.yml#L41) is using a collection `community.mysql` which is not in the allowed list, and this is detected by the policy `check_collection_policy`.
 
 
 Alternatively, you can output the evaluation result in a JSON format.
 
 ```bash
-$ ansible-gatekeeper -p examples/project/playbook.yml -c examples/ansible-gatekeeper.cfg --format json > agk-result.json
+$ ansible-gatekeeper -p examples/check_project/playbook.yml -c examples/ansible-gatekeeper.cfg --format json > agk-result.json
 ```
 
 Then you would get the JSON file like the following.
@@ -119,7 +117,7 @@ $ cat agk-result.json | jq .summary.files
   "validated": 0,
   "not_validated": 1,
   "list": [
-    "examples/project/playbook.yml"
+    "examples/check_project/playbook.yml"
   ]
 }
 ```
@@ -159,12 +157,12 @@ Ansible Gatekeeper supports policy checks for runtime events output from `ansibl
 
 ansible-runner generates the events while playbook execution. For example, "playbook_on_start" is an event at the start of the playbook execution, and "runner_on_ok" is the one for a task that is completed successfully.
 
-[event_handler.py](ansible_gatekeeper/event_handler.py) is a reference implementation to handle these runner events that are input by standard input and it outputs policy evaluation results to standard output like the following image.
+[event_handler.py](examples/check_event/event_handler.py) is a reference implementation to handle these runner events that are input by standard input and it outputs policy evaluation results to standard output like the following image.
 
 
 <img src="images/example_output_event_stream.png" width="600px">
 
-In the example above, a policybook [here](examples/sample_policybooks/compliance/policybooks/check_changed_event.yml) is used.
+In the example above, a policybook [here](examples/check_event/policies/check_changed_event.yml) is used.
 
 An event JSON data and its attributes are accessible by `input.xxxx` in the policybook condition field.
 

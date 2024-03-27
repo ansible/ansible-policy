@@ -13,6 +13,8 @@ from ansible_gatekeeper.rego_data import (
     Task,
     Play,
     Variables,
+    Event,
+    APIRequest,
     PolicyInput,
     load_input_from_jobdata,
     load_input_from_project_dir,
@@ -606,6 +608,8 @@ class PolicyEvaluator(object):
         project_dir: str = "",
         target_data: dict = None,
         task_result: TaskResult = None,
+        event: Event = None,
+        rest_request: APIRequest = None,
         external_data_path: str = "",
         variables_path: str = "",
     ):
@@ -623,9 +627,15 @@ class PolicyEvaluator(object):
         elif eval_type == EvalTypeTaskResult:
             input_data_dict = load_input_from_task_result(task_result=task_result)
         elif eval_type == EvalTypeEvent:
-            input_data_dict = load_input_from_event(event=target_data)
+            _event = target_data
+            if event:
+                _event = event
+            input_data_dict = load_input_from_event(event=_event)
         elif eval_type == EvalTypeRest:
-            input_data_dict = load_input_from_rest_data(rest_data=target_data)
+            _rest_data = target_data
+            if rest_request:
+                _rest_data = rest_request
+            input_data_dict = load_input_from_rest_data(rest_data=_rest_data)
         else:
             raise ValueError(f"eval_type `{eval_type}` is not supported")
 
