@@ -1,0 +1,16 @@
+# check_rest_username.yml
+---
+- name: Check username in rest data
+  hosts: localhost
+  policies:
+    - name: Check if username is admin
+      target: rest
+      condition:
+        all:
+          - input.method == "POST"
+          - input.data.username == "admin"
+      actions:
+        - deny:
+            msg: "`username` must not be 'admin'"
+      tags:
+        - compliance

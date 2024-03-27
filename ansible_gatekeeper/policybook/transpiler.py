@@ -25,6 +25,11 @@ from ansible_gatekeeper.policybook.json_generator import OPERATOR_MNEMONIC
 from ansible_gatekeeper.policybook.json_generator import generate_dict_policysets
 from ansible_gatekeeper.policybook.policy_parser import parse_policy_sets
 from ansible_gatekeeper.policybook.rego_model import RegoPolicy, RegoFunc
+from ansible_gatekeeper.utils import init_logger
+
+
+logger = init_logger(__name__, os.getenv("ANSIBLE_GK_LOG_LEVEL", "info"))
+
 
 rego_tpl = TemplateManager()
 
@@ -55,6 +60,7 @@ class PolicyTranspiler:
             if _found:
                 policy_list.extend(_found)
             for p in policy_list:
+                logger.debug(f"Transpiling policy file `{p}`")
                 outdir_for_this_policy = outdir
                 if "/post_run" in p and "/post_run" not in outdir_for_this_policy:
                     outdir_for_this_policy = os.path.join(outdir, "post_run")
@@ -73,7 +79,8 @@ class PolicyTranspiler:
                 data = yaml.safe_load(f.read())
                 policyset = generate_dict_policysets(parse_policy_sets(data))
         except Exception:
-            traceback.print_exc()
+            err = traceback.format_exc()
+            logger.warning(f"Failed to transpile `{policy_file}`. details: {err}")
         return policyset
 
     def ast_to_rego(self, ast, rego_dir):
