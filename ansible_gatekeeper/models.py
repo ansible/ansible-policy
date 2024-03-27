@@ -17,6 +17,7 @@ from ansible_gatekeeper.rego_data import (
     load_input_from_project_dir,
     load_input_from_task_result,
     load_input_from_event,
+    load_input_from_rest_data,
     process_input_data_with_external_data,
 )
 from ansible_gatekeeper.policybook.transpiler import PolicyTranspiler
@@ -48,12 +49,14 @@ default_policy_install_dir = "/tmp/ansible-gatekeeper/installed_policies"
 EvalTypeJobdata = "jobdata"
 EvalTypeProject = "project"
 EvalTypeTaskResult = "task_result"
+EvalTypeRest = "rest"
 EvalTypeEvent = "event"
 
 FORMAT_PLAIN = "plain"
 FORMAT_EVENT_STREAM = "event_stream"
+FORMAT_REST = "rest"
 FORMAT_JSON = "json"
-supported_formats = [FORMAT_PLAIN, FORMAT_EVENT_STREAM, FORMAT_JSON]
+supported_formats = [FORMAT_PLAIN, FORMAT_EVENT_STREAM, FORMAT_REST, FORMAT_JSON]
 
 
 @dataclass
@@ -600,26 +603,28 @@ class PolicyEvaluator(object):
         self,
         eval_type: str = "project",
         project_dir: str = "",
-        event: dict = "",
-        jobdata_path: str = "",
+        target_data: dict = None,
         task_result: TaskResult = None,
         external_data_path: str = "",
         variables_path: str = "",
     ):
         policy_files = self.list_enabled_policies()
+        logger.debug(f"policy_files: {policy_files}")
 
         variables = None
         if variables_path:
             variables = self.load_variables(variables_path=variables_path)
 
         if eval_type == EvalTypeJobdata:
-            input_data_dict, _ = load_input_from_jobdata(jobdata_path=jobdata_path)
+            input_data_dict, _ = load_input_from_jobdata(jobdata=target_data)
         elif eval_type == EvalTypeProject:
             input_data_dict = load_input_from_project_dir(project_dir=project_dir, variables=variables)
         elif eval_type == EvalTypeTaskResult:
             input_data_dict = load_input_from_task_result(task_result=task_result)
         elif eval_type == EvalTypeEvent:
-            input_data_dict = load_input_from_event(event=event)
+            input_data_dict = load_input_from_event(event=target_data)
+        elif eval_type == EvalTypeRest:
+            input_data_dict = load_input_from_rest_data(rest_data=target_data)
         else:
             raise ValueError(f"eval_type `{eval_type}` is not supported")
 
@@ -640,28 +645,34 @@ class PolicyEvaluator(object):
         result = EvaluationResult()
         for input_type in input_data_dict:
             input_data_per_type = input_data_dict[input_type]
+            data_num = len(input_data_per_type)
+            logger.debug(f"len(input_data_per_type): {data_num}")
             for single_input_data in input_data_per_type:
-                filepath = single_input_data.object.filepath
-                if filepath == "__in_memory__":
-                    filepath = project_dir
+                obj = single_input_data.object
+                filepath = "__no_filepath__"
+                if hasattr(obj, "filepath"):
+                    filepath = getattr(obj, "filepath")
+                    if filepath == "__in_memory__":
+                        filepath = project_dir
 
                 lines = None
                 body = ""
                 metadata = {}
                 if eval_type == EvalTypeEvent:
-                    _e = single_input_data.object
                     lines = {
-                        "begin": _e.line,
+                        "begin": obj.line,
                         "end": None,
                     }
-                    filepath = single_input_data.object.uuid
-                    metadata = single_input_data.object.__dict__
+                    filepath = obj.uuid
+                    metadata = obj.__dict__
+                elif eval_type == EvalTypeRest:
+                    pass
                 else:
                     with open(filepath, "r") as f:
                         body = f.read()
                     if input_type in ["task", "play"]:
                         _identifier = LineIdentifier()
-                        block = _identifier.find_block(body=body, obj=single_input_data.object)
+                        block = _identifier.find_block(body=body, obj=obj)
                         lines = block.to_dict()
 
                 for policy_path in policy_files:
@@ -678,7 +689,7 @@ class PolicyEvaluator(object):
                         is_target_type=is_target_type,
                         policy_name=policy_name,
                         target_type=target_type,
-                        obj=single_input_data.object,
+                        obj=obj,
                         filepath=filepath,
                         lines=lines,
                         metadata=metadata,
@@ -728,6 +739,8 @@ class ResultFormatter(object):
             self.print_event_stream(result)
         elif self.format_type == FORMAT_JSON:
             self.print_json(result)
+        elif self.format_type == FORMAT_REST:
+            self.print_rest(result)
         elif self.format_type == FORMAT_PLAIN:
             self.print_plain(result)
 
@@ -761,6 +774,36 @@ class ResultFormatter(object):
         if _msg:
             _msg = f"\n    \033[90m{_msg}\033[00m"
         _line = f"Event [{event_name}] {file_info} {_violated} {_msg}"
+        print(_line)
+
+    def print_rest(self, result: EvaluationResult):
+        if not result.files:
+            return
+        file_result = result.files[0]
+        if not file_result.policies:
+            return
+
+        policy_result = None
+        target_result = None
+        for p_res in file_result.policies:
+            if p_res.targets:
+                policy_result = p_res
+                target_result = p_res.targets[0]
+        if not policy_result or not target_result:
+            return
+
+        policy_name = policy_result.policy_name
+
+        _violated = "\033[91mViolation\033[00m" if file_result.violation else "\033[96mPass\033[00m"
+        _msg = ""
+        if policy_result.violation:
+            _msg += target_result.message.strip()
+        max_message_length = 120
+        if len(_msg) > max_message_length:
+            _msg = _msg[:max_message_length] + "..."
+        if _msg:
+            _msg = f"\033[90m{_msg}\033[00m"
+        _line = f"REST [{policy_name}] {_violated} {_msg}"
         print(_line)
 
     def print_json(self, result: EvaluationResult):

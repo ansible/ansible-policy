@@ -42,6 +42,7 @@ InputTypeRole = "role"
 InputTypeProject = "project"
 InputTypeTaskResult = "task_result"
 InputTypeEvent = "event"
+InputTypeRest = "rest"
 
 
 @dataclass
@@ -114,11 +115,10 @@ def get_all_set_vars(project: ScanResult, common_vars: dict = None):
     return variables
 
 
-def load_input_from_jobdata(jobdata_path: str = ""):
+def load_input_from_jobdata(jobdata: dict = {}):
     runner_jobdata_str = ""
-    if jobdata_path:
-        with open(jobdata_path, "r") as file:
-            runner_jobdata_str = file.read()
+    if jobdata:
+        runner_jobdata_str = json.dumps(jobdata)
     else:
         for line in sys.stdin:
             runner_jobdata_str += line
@@ -146,6 +146,11 @@ def load_input_from_task_result(task_result: AnsibleTaskResult = None):
 
 def load_input_from_event(event: dict = {}):
     policy_input = make_policy_input_for_event(event=event)
+    return policy_input
+
+
+def load_input_from_rest_data(rest_data: dict = {}):
+    policy_input = make_policy_input_for_rest_data(rest_data=rest_data)
     return policy_input
 
 
@@ -553,6 +558,7 @@ class PolicyInput(object):
     role: Role = None
     task_result: TaskResult = None
     event: Event = None
+    rest: dict = None
 
     vars_files: dict = field(default_factory=dict)
 
@@ -677,12 +683,21 @@ class PolicyInput(object):
         return [p_input]
 
     @staticmethod
-    def from_event(event: dict = ""):
+    def from_event(event: dict = {}):
         p_input_list = []
         event = Event.from_ansible_jobevent(event=event)
         p_input = PolicyInput()
         p_input.type = InputTypeEvent
         p_input.event = event
+        p_input_list.append(p_input)
+        return p_input_list
+
+    @staticmethod
+    def from_rest_data(rest_data: dict = {}):
+        p_input_list = []
+        p_input = PolicyInput()
+        p_input.type = InputTypeRest
+        p_input.rest = rest_data
         p_input_list.append(p_input)
         return p_input_list
 
@@ -709,6 +724,8 @@ class PolicyInput(object):
                 data["variables"] = self.variables
             elif self.type == InputTypeEvent:
                 data = self.event.__dict__
+            elif self.type == InputTypeRest:
+                data = self.rest
         except Exception:
             pass
         data["_agk"] = self
@@ -913,5 +930,13 @@ def make_policy_input_for_event(event: dict = {}) -> Dict[str, List[PolicyInput]
     policy_input_event = PolicyInput.from_event(event=event)
     policy_input = {
         "event": policy_input_event,
+    }
+    return policy_input
+
+
+def make_policy_input_for_rest_data(rest_data: dict = {}) -> Dict[str, List[PolicyInput]]:
+    policy_input_rest_data = PolicyInput.from_rest_data(rest_data=rest_data)
+    policy_input = {
+        "rest": policy_input_rest_data,
     }
     return policy_input
