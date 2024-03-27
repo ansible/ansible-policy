@@ -6,7 +6,7 @@ import jsonpickle
 import json
 import yaml
 from dataclasses import dataclass, field
-from typing import List, Dict
+from typing import List, Dict, Union
 from ansible.executor.task_result import TaskResult as AnsibleTaskResult
 from ansible.playbook.task import Task as AnsibleTask
 from ansible.parsing.yaml.objects import AnsibleUnicode
@@ -113,45 +113,6 @@ def get_all_set_vars(project: ScanResult, common_vars: dict = None):
         all_vars_per_tree.update(common_vars)
         variables[entrypoint_key] = all_vars_per_tree
     return variables
-
-
-def load_input_from_jobdata(jobdata: dict = {}):
-    runner_jobdata_str = ""
-    if jobdata:
-        runner_jobdata_str = json.dumps(jobdata)
-    else:
-        for line in sys.stdin:
-            runner_jobdata_str += line
-
-    workdir = tempfile.TemporaryDirectory()
-    prepare_project_dir_from_runner_jobdata(
-        jobdata=runner_jobdata_str,
-        workdir=workdir.name,
-    )
-    policy_input = make_policy_input_with_scan(target_path=workdir.name)
-    workdir.cleanup()
-    return policy_input, runner_jobdata_str
-
-
-def load_input_from_project_dir(project_dir: str = "", variables: Variables = None):
-    policy_input = make_policy_input_with_scan(target_path=project_dir, variables=variables)
-    return policy_input
-
-
-def load_input_from_task_result(task_result: AnsibleTaskResult = None):
-    _task_result = TaskResult.from_ansible_object(object=task_result)
-    policy_input = make_policy_input_for_task_result(task_result=_task_result)
-    return policy_input
-
-
-def load_input_from_event(event: dict = {}):
-    policy_input = make_policy_input_for_event(event=event)
-    return policy_input
-
-
-def load_input_from_rest_data(rest_data: dict = {}):
-    policy_input = make_policy_input_for_rest_data(rest_data=rest_data)
-    return policy_input
 
 
 def scan_project(
@@ -544,6 +505,42 @@ class Event(object):
         return _event
 
 
+# Input of REST type evaluation
+@dataclass
+class APIRequest(object):
+    headers: dict = field(default_factory=dict)
+    path: str = ""
+    method: str = ""
+    query_params: dict = field(default_factory=dict)
+    post_data: dict = field(default_factory=dict)
+
+    # merged data of `query_params` + `post_data`
+    data: dict = field(default_factory=dict)
+
+    def __post_init__(self):
+        if not self.data:
+            self.compute_data()
+
+    def compute_data(self):
+        data = {}
+        if self.query_params and isinstance(self.query_params, dict):
+            data.update(self.query_params)
+        if self.post_data and isinstance(self.post_data, dict):
+            data.update(self.post_data)
+        self.data = data
+
+    @staticmethod
+    def from_dict(rest_data: dict):
+        req = APIRequest()
+        req.headers = rest_data.get("headers", {})
+        req.path = rest_data.get("path", "")
+        req.method = rest_data.get("method", "")
+        req.query_params = rest_data.get("query_params", {})
+        req.post_data = rest_data.get("post_data", {})
+        req.compute_data()
+        return req
+
+
 @dataclass
 class PolicyInput(object):
     type: str = ""
@@ -558,7 +555,7 @@ class PolicyInput(object):
     role: Role = None
     task_result: TaskResult = None
     event: Event = None
-    rest: dict = None
+    rest: APIRequest = None
 
     vars_files: dict = field(default_factory=dict)
 
@@ -683,9 +680,10 @@ class PolicyInput(object):
         return [p_input]
 
     @staticmethod
-    def from_event(event: dict = {}):
+    def from_event(event: Union[Event, dict] = None):
         p_input_list = []
-        event = Event.from_ansible_jobevent(event=event)
+        if isinstance(event, dict):
+            event = Event.from_ansible_jobevent(event=event)
         p_input = PolicyInput()
         p_input.type = InputTypeEvent
         p_input.event = event
@@ -693,9 +691,11 @@ class PolicyInput(object):
         return p_input_list
 
     @staticmethod
-    def from_rest_data(rest_data: dict = {}):
+    def from_rest_data(rest_data: Union[APIRequest, dict] = None):
         p_input_list = []
         p_input = PolicyInput()
+        if isinstance(rest_data, dict):
+            rest_data = APIRequest.from_dict(rest_data=rest_data)
         p_input.type = InputTypeRest
         p_input.rest = rest_data
         p_input_list.append(p_input)
@@ -725,7 +725,7 @@ class PolicyInput(object):
             elif self.type == InputTypeEvent:
                 data = self.event.__dict__
             elif self.type == InputTypeRest:
-                data = self.rest
+                data = self.rest.__dict__
         except Exception:
             pass
         data["_agk"] = self
@@ -926,7 +926,7 @@ def make_policy_input_for_task_result(task_result: TaskResult = None) -> Dict[st
     return policy_input
 
 
-def make_policy_input_for_event(event: dict = {}) -> Dict[str, List[PolicyInput]]:
+def make_policy_input_for_event(event: Union[Event, dict] = None) -> Dict[str, List[PolicyInput]]:
     policy_input_event = PolicyInput.from_event(event=event)
     policy_input = {
         "event": policy_input_event,
@@ -934,9 +934,48 @@ def make_policy_input_for_event(event: dict = {}) -> Dict[str, List[PolicyInput]
     return policy_input
 
 
-def make_policy_input_for_rest_data(rest_data: dict = {}) -> Dict[str, List[PolicyInput]]:
+def make_policy_input_for_rest_data(rest_data: Union[APIRequest, dict] = None) -> Dict[str, List[PolicyInput]]:
     policy_input_rest_data = PolicyInput.from_rest_data(rest_data=rest_data)
     policy_input = {
         "rest": policy_input_rest_data,
     }
+    return policy_input
+
+
+def load_input_from_jobdata(jobdata: dict = {}):
+    runner_jobdata_str = ""
+    if jobdata:
+        runner_jobdata_str = json.dumps(jobdata)
+    else:
+        for line in sys.stdin:
+            runner_jobdata_str += line
+
+    workdir = tempfile.TemporaryDirectory()
+    prepare_project_dir_from_runner_jobdata(
+        jobdata=runner_jobdata_str,
+        workdir=workdir.name,
+    )
+    policy_input = make_policy_input_with_scan(target_path=workdir.name)
+    workdir.cleanup()
+    return policy_input, runner_jobdata_str
+
+
+def load_input_from_project_dir(project_dir: str = "", variables: Variables = None):
+    policy_input = make_policy_input_with_scan(target_path=project_dir, variables=variables)
+    return policy_input
+
+
+def load_input_from_task_result(task_result: AnsibleTaskResult = None):
+    _task_result = TaskResult.from_ansible_object(object=task_result)
+    policy_input = make_policy_input_for_task_result(task_result=_task_result)
+    return policy_input
+
+
+def load_input_from_event(event: Union[Event, dict] = None):
+    policy_input = make_policy_input_for_event(event=event)
+    return policy_input
+
+
+def load_input_from_rest_data(rest_data: Union[APIRequest, dict] = None):
+    policy_input = make_policy_input_for_rest_data(rest_data=rest_data)
     return policy_input

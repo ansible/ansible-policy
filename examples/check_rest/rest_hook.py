@@ -8,6 +8,7 @@ from ansible_gatekeeper.models import (
     ResultFormatter,
     FORMAT_REST,
 )
+from ansible_gatekeeper.rego_data import APIRequest
 
 
 app = Flask(__name__)
@@ -27,20 +28,28 @@ formatter = ResultFormatter(format_type=FORMAT_REST)
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    data = {}
+
     headers = {}
     for key, val in request.headers.items():
         headers[key] = val
-    data["headers"] = headers
-    data["path"] = request.path
-    data["method"] = request.method
-    data["data"] = request.json if request.mimetype == "application/json" else None
+    query_params = None
+    if request.args:
+        query_params = {}
+        for key, val in request.args.items():
+            query_params[key] = val
+    post_data = request.json if request.mimetype == "application/json" else None
+    rest_request = APIRequest(
+        headers=headers,
+        path=request.path,
+        method=request.method,
+        query_params=query_params,
+        post_data=post_data,
+    )
 
-    print("[DEBUG] Received POST data:", data["data"])
-
+    print("[DEBUG] Received POST data:", post_data)
     result = evaluator.run(
         eval_type=EvalTypeRest,
-        target_data=data,
+        rest_request=rest_request,
     )
     formatter.print(result=result)
 
