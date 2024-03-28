@@ -1,0 +1,9 @@
+- hosts: localhost
+  become: true
+  tasks:
+    - name: Change something here
+      community.general.ufw:
+        rule: allow
+        port: '80'
+        proto: tcp
+      check_mode: true

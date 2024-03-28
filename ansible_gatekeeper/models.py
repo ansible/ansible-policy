@@ -773,6 +773,9 @@ class ResultFormatter(object):
         _uuid = file_result.path
         short_uuid = _uuid[:4] + "..." + _uuid[-4:]
         file_info = task_path
+        cwd = os.getcwd() + "/"
+        if file_info.startswith(cwd):
+            file_info = file_info[len(cwd) :]
         file_info = f"\033[93m{file_info}\033[00m"
         event_name = f"{event_type} {short_uuid}"
         _violated = "\033[91mViolation\033[00m" if file_result.violation else "\033[96mPass\033[00m"

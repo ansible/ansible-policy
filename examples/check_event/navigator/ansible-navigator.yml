@@ -1,0 +1,39 @@
+---
+ansible-navigator:
+  ansible:
+    inventory:
+      help: False
+      entries:
+        - ./inventory/hosts
+    playbook:
+      help: False
+      path: ./playbook/test.yml
+
+  ansible-runner:
+    artifact-dir: ./runner
+    job-events: true
+
+  execution-environment:
+    container-engine: docker
+    enabled: true
+    # Build the EE image by the following command
+    # $ ansible-builder build -f custom_ee/custom_ee.yml -t custom-ee:dev
+    image: custom-ee:dev
+    # image: ghcr.io/ansible/creator-ee:v24.2.0
+    pull:
+      policy: missing
+    container-options:
+      - "--cap-add=NET_ADMIN"
+
+  logging:
+    append: true
+    file: ./logs/ansible-navigator.log
+    level: debug
+
+  mode: stdout
+
+  playbook-artifact:
+    enable: true
+    replay: ./logs/artifact/replay.json
+    save-as: ./logs/artifact/replay.json
+
