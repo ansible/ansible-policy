@@ -63,7 +63,7 @@ def main():
         policy_dir=args.policy_dir,
         external_data_path=args.external_data,
     )
-    ResultFormatter(format_type=args.format).print(result=result)
+    ResultFormatter(format_type=args.format, base_dir=os.getcwd()).print(result=result)
 
 
 if __name__ == "__main__":

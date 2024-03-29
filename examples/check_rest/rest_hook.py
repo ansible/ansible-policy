@@ -1,3 +1,4 @@
+import os
 import logging
 import jsonpickle
 import argparse
@@ -23,7 +24,7 @@ parser.add_argument("--policy-dir", help="path to a directory containing policie
 args = parser.parse_args()
 
 evaluator = PolicyEvaluator(policy_dir=args.policy_dir)
-formatter = ResultFormatter(format_type=FORMAT_REST)
+formatter = ResultFormatter(format_type=FORMAT_REST, base_dir=os.getcwd())
 
 
 @app.route("/", methods=["GET", "POST"])
