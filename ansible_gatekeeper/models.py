@@ -615,6 +615,8 @@ class PolicyEvaluator(object):
     ):
         policy_files = self.list_enabled_policies()
         logger.debug(f"policy_files: {policy_files}")
+        if not policy_files:
+            logger.warning("No policies are loaded!")
 
         variables = None
         if variables_path:
