@@ -59,6 +59,13 @@ class PolicyTranspiler:
             _found = glob.glob(pattern2, recursive=True)
             if _found:
                 policy_list.extend(_found)
+            if not policy_list:
+                input_parts = input.split("/")
+                if "policies" in input_parts or "policy" in input_parts:
+                    pattern3 = f"{input}/**/*.yml"
+                    _found = glob.glob(pattern3, recursive=True)
+                    if _found:
+                        policy_list.extend(_found)
             for p in policy_list:
                 logger.debug(f"Transpiling policy file `{p}`")
                 outdir_for_this_policy = outdir
