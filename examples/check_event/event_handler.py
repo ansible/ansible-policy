@@ -1,4 +1,5 @@
 import sys
+import os
 import json
 import argparse
 from ansible_gatekeeper.models import (
@@ -19,7 +20,7 @@ def main():
     args = parser.parse_args()
 
     evaluator = PolicyEvaluator(policy_dir=args.policy_dir)
-    formatter = ResultFormatter(format_type=FORMAT_EVENT_STREAM)
+    formatter = ResultFormatter(format_type=FORMAT_EVENT_STREAM, base_dir=os.getcwd())
     for event in load_event():
         result = evaluator.run(
             eval_type="event",

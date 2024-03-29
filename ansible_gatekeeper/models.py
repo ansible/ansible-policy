@@ -615,6 +615,8 @@ class PolicyEvaluator(object):
     ):
         policy_files = self.list_enabled_policies()
         logger.debug(f"policy_files: {policy_files}")
+        if not policy_files:
+            logger.warning("No policies are loaded!")
 
         variables = None
         if variables_path:
@@ -735,6 +737,7 @@ class ResultFormatter(object):
     format_type: str = None
     isatty: bool = None
     term_width: int = None
+    base_dir: str = ""
 
     def __post_init__(self):
         if self.format_type is None or self.format_type not in supported_formats:
@@ -773,6 +776,9 @@ class ResultFormatter(object):
         _uuid = file_result.path
         short_uuid = _uuid[:4] + "..." + _uuid[-4:]
         file_info = task_path
+        # if base_dir is provided, shorten the filepath to be shown when possible
+        if self.base_dir:
+            file_info = self.shorten_filepath(file_info)
         file_info = f"\033[93m{file_info}\033[00m"
         event_name = f"{event_type} {short_uuid}"
         _violated = "\033[91mViolation\033[00m" if file_result.violation else "\033[96mPass\033[00m"
@@ -853,6 +859,8 @@ class ResultFormatter(object):
             name = d.get("name", "")
             policy_name = d.get("policy_name", "")
             filepath = d.get("filepath", "")
+            if self.base_dir:
+                filepath = self.shorten_filepath(filepath)
             lines = d.get("lines", "")
             message = d.get("message", "").strip()
             _list = violation_per_type.get(_type, [])
@@ -908,3 +916,11 @@ class ResultFormatter(object):
                 violation_str = f"\033[96m{violation_str}\033[00m"
             print(violation_str)
         print("")
+
+    def shorten_filepath(self, filepath: str):
+        _base_dir_prefix = self.base_dir
+        if _base_dir_prefix[-1] != "/":
+            _base_dir_prefix += "/"
+        if filepath.startswith(_base_dir_prefix):
+            filepath = filepath[len(_base_dir_prefix) :]
+        return filepath
