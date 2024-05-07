@@ -1,3 +1,5 @@
+> **Note:** This repository is in prototype phase and under active development with subject to breaking changes.
+
 # Ansible Gatekeeper
 
 Ansible Gatekeeper is a prototype implementation which allows us to define and set constraints to the Ansible project in OPA Rego language. The key features of Ansible Gatekeeper are
