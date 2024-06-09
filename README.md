@@ -9,7 +9,7 @@ Ansible Policy is a prototype implementation which allows us to define and set c
 - Policies can be packed as an ansible collection.
 - Users can define policy in YAML format (policybook). It can be auto-transformed with PolicyTranspiler.
 
-<img width="992" alt="agk-arch" src="./images/agk-arch.png">
+<img width="992" alt="ap-arch" src="./images/ap-arch.png">
 
 ## Getting started
 
