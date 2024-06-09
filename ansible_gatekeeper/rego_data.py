@@ -18,8 +18,8 @@ from ansible_gatekeeper.utils import (
     embed_module_info_with_galaxy,
 )
 
-from ansible_scan_core.scanner import AnsibleScanner
-from ansible_scan_core.models import (
+from ansible_content_capture.scanner import AnsibleScanner
+from ansible_content_capture.models import (
     BecomeInfo,
     File as CoreFile,
     Task as CoreTask,
@@ -30,7 +30,7 @@ from ansible_scan_core.models import (
     ScanResult,
     VariableContainer,
 )
-from ansible_scan_core.utils import extract_var_parts
+from ansible_content_capture.utils import extract_var_parts
 
 
 scanner = AnsibleScanner(silent=True)
