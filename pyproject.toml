@@ -13,7 +13,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 dependencies = [
-    "ansible-scan-core@git+https://github.com/ansible/ansible-scan-core",
+    "ansible-content-capture@git+https://github.com/ansible/ansible-content-capture",
     "ansible-rulebook==1.0.4",
 ]
 
