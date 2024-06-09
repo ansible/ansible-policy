@@ -1,8 +1,8 @@
 > **Note:** This repository is in prototype phase and under active development with subject to breaking changes.
 
-# Ansible Gatekeeper
+# Ansible Policy
 
-Ansible Gatekeeper is a prototype implementation which allows us to define and set constraints to the Ansible project in OPA Rego language. The key features of Ansible Gatekeeper are
+Ansible Policy is a prototype implementation which allows us to define and set constraints to the Ansible project in OPA Rego language. The key features of Ansible Policy are
 - Ansible project is auto scanned as objects and accessible from OPA policy (using ARI project scanning internally).
 - Ansible knowledge base acquired from external sources such as Galaxy can be used from OPA policy.
 - Multiple policy resolution from the scanned Ansible content.
@@ -21,25 +21,25 @@ refer to OPA [document](https://github.com/open-policy-agent/opa#want-to-downloa
 
 clone this repository
 
-### 3. Install `ansbile-gatekeeper` command
+### 3. Install `ansbile-policy` command
 
 ```bash
-$ cd ansible-gatekeeper
+$ cd ansible-policy
 $ pip install -e .
 ```
 
 <!--
-### 4. Install `gatekeeper.rego` modules
+### 4. Install `policy.rego` modules
 
 ```bash
-$ ansible-galaxy collection install collections/gatekeeper.rego --force
+$ ansible-galaxy collection install collections/policy.rego --force
 
 Starting galaxy collection install process
 Process install dependency map
 Starting collection install process
-Installing 'gatekeeper.rego:0.0.1' to '/Users/user/.ansible/collections/ansible_collections/gatekeeper/rego'
-Created collection for gatekeeper.rego:0.0.1 at /Users/user/.ansible/collections/ansible_collections/gatekeeper/rego
-gatekeeper.rego:0.0.1 was installed successfully
+Installing 'policy.rego:0.0.1' to '/Users/user/.ansible/collections/ansible_collections/policy/rego'
+Created collection for policy.rego:0.0.1 at /Users/user/.ansible/collections/ansible_collections/policy/rego
+policy.rego:0.0.1 was installed successfully
 ```
 -->
 
@@ -50,13 +50,13 @@ As examples, the following policybooks can be found in the `examples/check_proje
 - `check_collection_policy` [yml](./examples/check_project/policies/check_collection.yml): Check if only authorized collections are used
 - `check_become_policy` [yml](./examples/check_project/policies/check_become.yml): check if `become: true` is used and check if only `trusted user` is used
 
-Ansible-gatekeeper transpile these policybooks into OPA policy automatically and evaluate the policies.
+ansible-policy transpile these policybooks into OPA policy automatically and evaluate the policies.
 
-See this [doc](./ansible_gatekeeper/policybook/README.md) about Policybook specification.
+See this [doc](./ansible_policy/policybook/README.md) about Policybook specification.
 
 ### 5. Configure policies
 
-A configuration for ansible-gatekeeper is something like the following.
+A configuration for ansible-policy is something like the following.
 
 ```ini
 [policy]
@@ -69,23 +69,23 @@ policies.org.compliance    = examples/check_project    # org-wide compliance pol
 
 `policy` field is a configuration like iptable to enable/disable installed policies. Users can use tag for configuring this in detail.
 
-`source` field is a list of module packages and their source like ansible-galaxy or local directory. ansible-gatekeeper installs policies based on this configuration.
+`source` field is a list of module packages and their source like ansible-galaxy or local directory. ansible-policy installs policies based on this configuration.
 
 The example above is configured to enable the 3 policies in step 4.
 
 <!-- - `mongodb_user_db_policy` ([yaml](./examples/collection_policies/policies.community_mongodb/policies/check_database_name.yml), [rego](./examples/collection_policies/policies.community_mongodb/policies/check_database_name_generated.rego)): check if a database name which is used in the task is allowed or not, for tasks using `community.mongodb.mongodb_user`.
 - `check_become_policy` ([yaml](./examples/org_wide_policies/compliance/policies/check_become.yml), [rego](./examples/org_wide_policies/compliance/policies/check_become_generated.rego)): check if `become: true` is used or not for all tasks -->
 
-You can use [the example config file](examples/ansible-gatekeeper.cfg) for the next step.
+You can use [the example config file](examples/ansible-policy.cfg) for the next step.
 
 ### 6. Running policy evaluation on a playbook
 
 [The example playbook](examples/check_project/playbook.yml) has some tasks that violate the 3 policies above.
 
-ansible-gatekeeper can report these violations like the following.
+ansible-policy can report these violations like the following.
 
 ```bash
-$ ansible-gatekeeper -p examples/check_project/playbook.yml -c examples/ansible-gatekeeper.cfg
+$ ansible-policy -p examples/check_project/playbook.yml -c examples/ansible-policy.cfg
 ```
 
 <img src="images/example_output_policybook.png" width="600px">
@@ -101,7 +101,7 @@ From the result, you can see the details on violations.
 Alternatively, you can output the evaluation result in a JSON format.
 
 ```bash
-$ ansible-gatekeeper -p examples/check_project/playbook.yml -c examples/ansible-gatekeeper.cfg --format json > agk-result.json
+$ ansible-policy -p examples/check_project/playbook.yml -c examples/ansible-policy.cfg --format json > agk-result.json
 ```
 
 Then you would get the JSON file like the following.
@@ -155,7 +155,7 @@ cat /tmp/agk-result.json | jq .files[0].policies[1].targets[1]
 
 ## Policy check for Event streams
 
-Ansible Gatekeeper supports policy checks for runtime events output from `ansible-runner`.
+Ansible Policy supports policy checks for runtime events output from `ansible-runner`.
 
 ansible-runner generates the events while playbook execution. For example, "playbook_on_start" is an event at the start of the playbook execution, and "runner_on_ok" is the one for a task that is completed successfully.
 
