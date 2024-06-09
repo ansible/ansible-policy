@@ -3,13 +3,13 @@ import logging
 import jsonpickle
 import argparse
 from flask import Flask, request
-from ansible_gatekeeper.models import (
+from ansible_policy.models import (
     PolicyEvaluator,
     EvalTypeRest,
     ResultFormatter,
     FORMAT_REST,
 )
-from ansible_gatekeeper.rego_data import APIRequest
+from ansible_policy.rego_data import APIRequest
 
 
 app = Flask(__name__)

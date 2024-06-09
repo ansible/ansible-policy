@@ -20,14 +20,14 @@ dependencies = [
 dynamic = ["version"]
 
 [tool.setuptools.dynamic]
-version = {attr = "ansible_gatekeeper.__version__.__version__"}
+version = {attr = "ansible_policy.__version__.__version__"}
 
 [project.scripts]
-ansible-gatekeeper = "ansible_gatekeeper.eval_policy:main"
+ansible-policy = "ansible_policy.eval_policy:main"
 
 [tool.setuptools]
-py-modules = ["ansible_gatekeeper"]
-packages = ["ansible_gatekeeper"]
+py-modules = ["ansible_policy"]
+packages = ["ansible_policy"]
 
 [tool.black]
 line-length = 150
