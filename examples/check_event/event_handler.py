@@ -2,7 +2,7 @@ import sys
 import os
 import json
 import argparse
-from ansible_gatekeeper.models import (
+from ansible_policy.models import (
     PolicyEvaluator,
     ResultFormatter,
     FORMAT_EVENT_STREAM,

@@ -28,23 +28,8 @@ $ cd ansible-policy
 $ pip install -e .
 ```
 
-<!--
-### 4. Install `policy.rego` modules
-
-```bash
-$ ansible-galaxy collection install collections/policy.rego --force
-
-Starting galaxy collection install process
-Process install dependency map
-Starting collection install process
-Installing 'policy.rego:0.0.1' to '/Users/user/.ansible/collections/ansible_collections/policy/rego'
-Created collection for policy.rego:0.0.1 at /Users/user/.ansible/collections/ansible_collections/policy/rego
-policy.rego:0.0.1 was installed successfully
-```
--->
-
 ### 4. Prepare Policybook
-As examples, the following policybooks can be found in the `examples/check_project/policies` directory. 
+As examples, the following policybooks can be found in the `examples/check_project/policies` directory.
 
 -  `check_package_policy` [yml](./examples/check_project/policies/check_pkg.yml): Check if only authorized packages are installed.
 - `check_collection_policy` [yml](./examples/check_project/policies/check_collection.yml): Check if only authorized collections are used
@@ -72,9 +57,6 @@ policies.org.compliance    = examples/check_project    # org-wide compliance pol
 `source` field is a list of module packages and their source like ansible-galaxy or local directory. ansible-policy installs policies based on this configuration.
 
 The example above is configured to enable the 3 policies in step 4.
-
-<!-- - `mongodb_user_db_policy` ([yaml](./examples/collection_policies/policies.community_mongodb/policies/check_database_name.yml), [rego](./examples/collection_policies/policies.community_mongodb/policies/check_database_name_generated.rego)): check if a database name which is used in the task is allowed or not, for tasks using `community.mongodb.mongodb_user`.
-- `check_become_policy` ([yaml](./examples/org_wide_policies/compliance/policies/check_become.yml), [rego](./examples/org_wide_policies/compliance/policies/check_become_generated.rego)): check if `become: true` is used or not for all tasks -->
 
 You can use [the example config file](examples/ansible-policy.cfg) for the next step.
 
