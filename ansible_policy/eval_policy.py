@@ -19,7 +19,9 @@ def eval_policy(
 ):
 
     if not external_data_path:
-        external_data_path = os.path.join(os.path.dirname(__file__), "galaxy_data.json")
+        _external_data_path = os.path.join(os.path.dirname(__file__), "galaxy_data.json")
+        if os.path.exists(_external_data_path):
+            external_data_path = _external_data_path
 
     evaluator = PolicyEvaluator(config_path=config_path, policy_dir=policy_dir)
     result = evaluator.run(

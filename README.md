@@ -39,35 +39,15 @@ ansible-policy transpile these policybooks into OPA policy automatically and eva
 
 See this [doc](./ansible_policy/policybook/README.md) about Policybook specification.
 
-### 5. Configure policies
 
-A configuration for ansible-policy is something like the following.
-
-```ini
-[policy]
-default disabled
-policies.org.compliance   tag=compliance  enabled
-
-[source]
-policies.org.compliance    = examples/check_project    # org-wide compliance policy
-```
-
-`policy` field is a configuration like iptable to enable/disable installed policies. Users can use tag for configuring this in detail.
-
-`source` field is a list of module packages and their source like ansible-galaxy or local directory. ansible-policy installs policies based on this configuration.
-
-The example above is configured to enable the 3 policies in step 4.
-
-You can use [the example config file](examples/ansible-policy.cfg) for the next step.
-
-### 6. Running policy evaluation on a playbook
+### 5. Running policy evaluation on a playbook
 
 [The example playbook](examples/check_project/playbook.yml) has some tasks that violate the 3 policies above.
 
 ansible-policy can report these violations like the following.
 
 ```bash
-$ ansible-policy -p examples/check_project/playbook.yml -c examples/ansible-policy.cfg
+$ ansible-policy -p examples/check_project/playbook.yml --policy-dir examples/check_project/policies
 ```
 
 <img src="images/example_output_policybook.png" width="600px">
@@ -75,15 +55,15 @@ $ ansible-policy -p examples/check_project/playbook.yml -c examples/ansible-poli
 
 From the result, you can see the details on violations.
 
-- [The task "Install nginx"](examples/check_project/playbook.yml#L30) is installing a package `nginx` with a root permission by using `become: true`. Nginx is not listed in the allowed packages and this is detected by the `check_package_policy`. Also privilege escalation is detected by the `check_become_policy`.
+- [The task "Install Unauthorized App"](examples/check_project/playbook.yml#L32) is installing a package `unauthorized-app` with a root permission by using `become: true`. This is not listed in the allowed packages defined in the policybook [check_package_policy]((examples/check_project/policies/check_pkg.yml)). Also the privilege escalation is detected by the policybook [check_become_policy](examples/check_project/policies/check_become.yml).
 
-- [The task "Set MySQL root password"](examples/check_project/playbook.yml#L41) is using a collection `community.mysql` which is not in the allowed list, and this is detected by the policy `check_collection_policy`.
+- [The task "Set MySQL root password"](examples/check_project/playbook.yml#L38) is using a collection `community.mysql` which is not in the allowed list, and this is detected by the policybook [check_collection_policy](examples/check_project/policies/check_collection.yml).
 
 
 Alternatively, you can output the evaluation result in a JSON format.
 
 ```bash
-$ ansible-policy -p examples/check_project/playbook.yml -c examples/ansible-policy.cfg --format json > agk-result.json
+$ ansible-policy -p examples/check_project/playbook.yml --policy-dir examples/check_project/policies --format json > agk-result.json
 ```
 
 Then you would get the JSON file like the following.
@@ -133,6 +113,27 @@ cat /tmp/agk-result.json | jq .files[0].policies[1].targets[1]
   "message": "privilage escalation is detected. allowed users are one of [\"trusted_user\"]\n"
 }
 ```
+
+### 6. (OPTIONAL) Prepare your configuration file
+
+Instead of specifying the policy directory, you can define a configuration for ansible-policy like the following.
+
+```ini
+[policy]
+default disabled
+policies.org.compliance   tag=compliance  enabled
+
+[source]
+policies.org.compliance    = examples/check_project    # org-wide compliance policy
+```
+
+`policy` field is a configuration like iptable to enable/disable installed policies. Users can use tag for configuring this in detail.
+
+`source` field is a list of module packages and their source like ansible-galaxy or local directory. ansible-policy installs policies based on this configuration.
+
+The example above is configured to enable the 3 policies in step 4.
+
+You can check [the example config file](examples/ansible-policy.cfg) as reference.
 
 
 ## Policy check for Event streams

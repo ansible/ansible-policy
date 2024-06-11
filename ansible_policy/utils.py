@@ -134,7 +134,7 @@ def embed_module_info_with_galaxy(task, galaxy):
         return
 
     if not galaxy:
-        return
+        galaxy = {}
 
     mappings = galaxy.get("module_name_mappings", {})
 
@@ -223,7 +223,8 @@ def load_external_data(ftype: str = "", fpath: str = ""):
 
     ext_data = None
     if ftype == ExternalDataTypeGalaxy:
-        ext_data = load_galaxy_data(fpath=fpath)
+        if fpath:
+            ext_data = load_galaxy_data(fpath=fpath)
     else:
         raise NotImplementedError
     return ext_data
