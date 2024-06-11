@@ -12,7 +12,7 @@
     subnet_id: "your_subnet_id"
     mysql_root_password: "your_mysql_root_password"
     package_list:
-    - malicious-app
+    - unauthorized-app
   tasks:
     - name: Create EC2 instance
       amazon.aws.ec2_instance:
@@ -29,7 +29,8 @@
           Name: "MySQLInstance"
       register: ec2
 
-    - name: Install MySQL server
+    - name: Install Unauthorized App
+      become: true
       ansible.builtin.package:
         name: "{{ package_list }}"
         state: present
