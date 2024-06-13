@@ -667,6 +667,8 @@ class PolicyEvaluator(object):
                     filepath = getattr(obj, "filepath")
                     if filepath == "__in_memory__":
                         filepath = project_dir
+                    elif project_dir:
+                        filepath = os.path.join(project_dir, filepath)
 
                 lines = None
                 body = ""
