@@ -119,7 +119,7 @@ null_t = Literal("null").copy().add_parse_action(lambda toks: Null())
 #     QuotedString('"').copy().add_parse_action(lambda toks: String(toks[0]))
 # )
 
-plain_string = Word(alphanums + "[" + "]" + "." + "_" + "'" + '"').copy().add_parse_action(lambda toks: String(toks[0]))
+plain_string = Word(alphanums + "[" + "]" + "." + "_" + "'" + '"' + ",").copy().add_parse_action(lambda toks: String(toks[0]))
 
 # allowed_values = number_t | boolean | null_t | string1 | string2
 allowed_values = number_t | boolean | null_t
@@ -301,6 +301,8 @@ condition = infix_notation(
 
 def parse_condition(condition_string: str) -> Condition:
     condition.debug = True
+    # !! short term solution to support list format like ["A", "B", "C"] in condition
+    condition_string = condition_string.replace(", ", ",")
     condition.parseString(condition_string, parse_all=True)[0]
     try:
         return condition.parseString(condition_string, parse_all=True)[0]

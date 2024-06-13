@@ -110,7 +110,7 @@ class PolicyTranspiler:
             # package
             _package = pol["name"]
             if " " in pol["name"]:
-                _package = pol["name"].replace(" ", "_").replace("-", "_")
+                _package = pol["name"].replace(" ", "_").replace("-", "_").replace("?", "")
             rego_policy.package = _package
             # import statements
             rego_policy.import_statements = [
@@ -209,7 +209,7 @@ class PolicyTranspiler:
         rf = RegoFunc()
         func_name = f"{policy_name}_{index}"
         if " " in func_name:
-            func_name = func_name.replace(" ", "_").replace("-", "_")
+            func_name = func_name.replace(" ", "_").replace("-", "_").replace("?", "")
         rf.name = func_name
         if "AndExpression" in condition:
             rego_expressions = []
