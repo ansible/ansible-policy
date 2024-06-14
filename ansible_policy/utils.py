@@ -3,7 +3,7 @@ import re
 import base64
 import json
 import yaml
-import Levenshtein
+from rapidfuzz.distance import Levenshtein
 import tarfile
 import zipfile
 import tempfile
