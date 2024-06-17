@@ -27,8 +27,9 @@ from pyparsing import (
     Suppress,
     Word,
     ZeroOrMore,
+    DelimitedList,
+    Forward,
     alphanums,
-    delimitedList,
     infix_notation,
     one_of,
     originalTextFor,
@@ -94,7 +95,7 @@ logger = logging.getLogger(__name__)
 number_t = pyparsing_common.number.copy().add_parse_action(lambda toks: to_condition_type(toks[0]))
 
 ident = pyparsing_common.identifier
-valid_prefix = Keyword("events") | Keyword("event") | Keyword("facts") | Keyword("vars") | Keyword("fact")
+valid_prefix = Keyword("input")
 varname = (
     Combine(
         valid_prefix
@@ -112,35 +113,27 @@ boolean = (true | false).copy().add_parse_action(lambda toks: Boolean(toks[0].lo
 
 null_t = Literal("null").copy().add_parse_action(lambda toks: Null())
 
-# string1 = (
-#     QuotedString("'").copy().add_parse_action(lambda toks: String(toks[0]))
-# )
-# string2 = (
-#     QuotedString('"').copy().add_parse_action(lambda toks: String(toks[0]))
-# )
+string1 = QuotedString("'").copy().add_parse_action(lambda toks: String(toks[0]))
+string2 = QuotedString('"').copy().add_parse_action(lambda toks: String(toks[0]))
 
-plain_string = Word(alphanums + "[" + "]" + "." + "_" + "'" + '"' + ",").copy().add_parse_action(lambda toks: String(toks[0]))
-
-# allowed_values = number_t | boolean | null_t | string1 | string2
-allowed_values = number_t | boolean | null_t
+plain_string = Word(alphanums + "_" + ".").copy().add_parse_action(lambda toks: String(toks[0]))
+allowed_values = number_t | boolean | null_t | string1 | string2
 key_value = ident + Suppress("=") + allowed_values
 string_search_t = (
-    one_of("regex match search")
-    + Suppress("(")
-    # + Group(Optional(delimitedList(string1 | string2 | varname | key_value)))
-    + Group(Optional(delimitedList(varname | key_value)))
-    + Suppress(")")
+    one_of("regex match search") + Suppress("(") + Group(Optional(DelimitedList(string1 | string2 | varname | key_value))) + Suppress(")")
 )
 
-delim_value = Group(
-    # delimitedList(number_t | null_t | boolean | varname | string1 | string2)
-    delimitedList(number_t | null_t | boolean | varname)
-)
-list_values = Suppress("[") + delim_value + Suppress("]")
+list_values = Forward()
 
-selectattr_t = Literal("selectattr") + Suppress("(") + Group(delimitedList(allowed_values | list_values | varname)) + Suppress(")")
+allowed_values = number_t | boolean | null_t | string1 | string2
 
-select_t = Literal("select") + Suppress("(") + Group(delimitedList(allowed_values | list_values | varname)) + Suppress(")")
+delim_value = Group(DelimitedList(number_t | null_t | boolean | varname | string1 | string2 | list_values))
+
+list_values <<= Suppress("[") + delim_value + Suppress("]")
+
+selectattr_t = Literal("selectattr") + Suppress("(") + Group(DelimitedList(allowed_values | list_values | varname)) + Suppress(")")
+
+select_t = Literal("select") + Suppress("(") + Group(DelimitedList(allowed_values | list_values | varname)) + Suppress(")")
 
 
 def as_list(var):
@@ -198,34 +191,10 @@ def OperatorExpressionFactory(tokens):
     return return_value
 
 
-all_terms = (
-    selectattr_t
-    | select_t
-    | string_search_t
-    | list_values
-    | number_t
-    | null_t
-    | boolean
-    | varname
-    | plain_string
-    # | string1
-    # | string2
-)
+all_terms = selectattr_t | select_t | string_search_t | list_values | number_t | null_t | boolean | varname | plain_string | string1 | string2
 condition = infix_notation(
-    all_terms,
-    [
-        (
-            one_of("* /"),
-            2,
-            OpAssoc.LEFT,
-            lambda toks: OperatorExpressionFactory(toks[0]),
-        ),
-        (
-            one_of("+ -"),
-            2,
-            OpAssoc.LEFT,
-            lambda toks: OperatorExpressionFactory(toks[0]),
-        ),
+    base_expr=all_terms,
+    op_list=[
         (
             ">=",
             2,
@@ -289,20 +258,12 @@ condition = infix_notation(
             OpAssoc.LEFT,
             lambda toks: OperatorExpressionFactory(toks[0]),
         ),
-        (
-            "<<",
-            2,
-            OpAssoc.LEFT,
-            lambda toks: OperatorExpressionFactory(toks[0]),
-        ),
     ],
 ).add_parse_action(lambda toks: Condition(toks[0]))
 
 
 def parse_condition(condition_string: str) -> Condition:
     condition.debug = True
-    # !! short term solution to support list format like ["A", "B", "C"] in condition
-    condition_string = condition_string.replace(", ", ",")
     condition.parseString(condition_string, parse_all=True)[0]
     try:
         return condition.parseString(condition_string, parse_all=True)[0]
@@ -310,3 +271,28 @@ def parse_condition(condition_string: str) -> Condition:
         msg = f"Error parsing: {condition_string}. {pe}"
         logger.debug(pe.explain(depth=0))
         raise ConditionParsingException(msg)
+
+
+def main():
+    test_condition_strings = [
+        'input["ansible.builtin.package"].name not in allowed_packages',
+        'input["ansible.builtin.package"].name not in [[input["amazon.aws"], "A2"], "B", "C"]',
+        'input["ansible.builtin.package"].name in input["ansible.builtin.package"].alist',
+        '"input.become == true and input.become_user not in allowed_users"',
+        '"input.become == true and input lacks key become_user"',
+        '"input._agk.task.module_info.collection not in allowed_collections"',
+        'input["ansible.posix.firewalld"].service in banned_services',
+        'input["amazon.aws.rds_instance"].publicly_accessible == true',
+        'input.become == true and input.become_user != "malicious-user"',
+        'input["ansible.builtin.lineinfile"].line != \'DOCKER_OPTS="--dns"\'',
+        'input["cisco.ios.ios_config"].lines in banned_configurations.telnet',
+    ]
+
+    for s in test_condition_strings:
+        print(f"condition string: \n{s}\n")
+        r = parse_condition(s)
+        print(f"parse result:\n{r}\n\n")
+
+
+if __name__ == "__main__":
+    main()

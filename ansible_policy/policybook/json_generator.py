@@ -53,9 +53,6 @@ OPERATOR_MNEMONIC = {
     "<": "LessThanExpression",
     ">=": "GreaterThanOrEqualToExpression",
     "<=": "LessThanOrEqualToExpression",
-    "+": "AdditionExpression",
-    "-": "SubtractionExpression",
-    "<<": "AssignmentExpression",
     "in": "ItemInListExpression",
     "not in": "ItemNotInListExpression",
     "contains": "ListContainsItemExpression",
@@ -74,20 +71,10 @@ def visit_condition(parsed_condition: ConditionTypes):
     elif isinstance(parsed_condition, Boolean):
         return {"Boolean": True} if parsed_condition.value == "true" else {"Boolean": False}
     elif isinstance(parsed_condition, Identifier):
-        if parsed_condition.value.startswith("fact."):
-            return {"Fact": parsed_condition.value[5:]}
-        elif parsed_condition.value.startswith("fact["):
-            return {"Fact": parsed_condition.value[4:]}
-        elif parsed_condition.value.startswith("event."):
-            return {"Event": parsed_condition.value[6:]}
-        elif parsed_condition.value.startswith("event["):
-            return {"Event": parsed_condition.value[5:]}
-        elif parsed_condition.value.startswith("events."):
-            return {"Events": parsed_condition.value[7:]}
-        elif parsed_condition.value.startswith("facts."):
-            return {"Facts": parsed_condition.value[6:]}
+        if parsed_condition.value.startswith("input"):
+            return {"Input": parsed_condition.value}
         else:
-            msg = f"Invalid identifier : {parsed_condition.value} " + "Should start with event., events.,fact., facts. or vars."
+            msg = f"Invalid identifier : {parsed_condition.value} " + "Should start with input."
             raise InvalidIdentifierException(msg)
 
     elif isinstance(parsed_condition, String):
