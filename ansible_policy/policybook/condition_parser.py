@@ -275,17 +275,31 @@ def parse_condition(condition_string: str) -> Condition:
 
 def main():
     test_condition_strings = [
+        # not in
         'input["ansible.builtin.package"].name not in allowed_packages',
+        # nested list
         'input["ansible.builtin.package"].name not in [[input["amazon.aws"], "A2"], "B", "C"]',
+        # in
         'input["ansible.builtin.package"].name in input["ansible.builtin.package"].alist',
+        # bool, multi_cond
         '"input.become == true and input.become_user not in allowed_users"',
+        # lacks key
         '"input.become == true and input lacks key become_user"',
+        # input._agk.xxx
         '"input._agk.task.module_info.collection not in allowed_collections"',
+        # input["xxx"]
         'input["ansible.posix.firewalld"].service in banned_services',
-        'input["amazon.aws.rds_instance"].publicly_accessible == true',
+        # "-"
         'input.become == true and input.become_user != "malicious-user"',
         'input["ansible.builtin.lineinfile"].line != \'DOCKER_OPTS="--dns"\'',
-        'input["cisco.ios.ios_config"].lines in banned_configurations.telnet',
+        # "*"
+        'input.become == true and input.become_user != "*"',
+        # "+"
+        'input["ansible.builtin.package"].name != "package++"',
+        # is not defined
+        'input["kubernetes.core.k8s"].kubeconfig is not defined',
+        # defined
+        'input["kubernetes.core.k8s"].kubeconfig is defined',
     ]
 
     for s in test_condition_strings:

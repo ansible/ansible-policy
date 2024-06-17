@@ -34,6 +34,16 @@ key_not_in_dict_condition = """${lhs}
     input_keys := [key | ${lhs}[key]; key == ${rhs}]
     count(input_keys) == 0"""
 
+args_is_not_defined_condition = """${val1}
+    not ${val2}"""
+
+args_is_defined_condition = """${val1}
+    ${val2}"""
+
+var_is_not_defined_condition = """not ${val1}"""
+
+var_is_defined_condition = """${val1}"""
+
 # rego util funcs
 item_not_in_list_func = """
 check_item_not_in_list(lhs_list, rhs_list) = true if {
@@ -75,6 +85,10 @@ class TemplateManager:
         self._item_in_list_expression = self.add_template(item_in_list_condition)
         self._key_in_dict_expression = self.add_template(key_in_dict_condition)
         self._key_not_in_dict_expression = self.add_template(key_not_in_dict_condition)
+        self._args_is_not_defined_expression = self.add_template(args_is_not_defined_condition)
+        self._args_is_defined_expression = self.add_template(args_is_defined_condition)
+        self._var_is_not_defined_expression = self.add_template(var_is_not_defined_condition)
+        self._var_is_defined_expression = self.add_template(var_is_defined_condition)
         # util funcs
         self._item_not_in_list_func = item_not_in_list_func
         self._item_in_list_func = item_in_list_func

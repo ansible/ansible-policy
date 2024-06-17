@@ -59,6 +59,8 @@ OPERATOR_MNEMONIC = {
     "not contains": "ListNotContainsItemExpression",
     "has key": "KeyInDictExpression",
     "lacks key": "KeyNotInDictExpression",
+    "is not defined": "IsNotDefinedExpression",
+    "is defined": "IsDefinedExpression",
 }
 
 

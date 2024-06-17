@@ -310,6 +310,26 @@ class PolicyTranspiler:
             rhs_val = self.change_data_format(rhs).replace('"', "")
             template = rego_tpl._key_not_in_dict_expression
             rego_expressions.append(self.make_expression_from_val(template, lhs=lhs_val, rhs=f'"{rhs_val}"'))
+        elif "IsNotDefinedExpression" in ast_exp:
+            val = self.change_data_format(ast_exp["IsNotDefinedExpression"])
+            if "." in val:
+                val_key = val.split(".")[-1]
+                val_dict = val.replace(f".{val_key}", "")
+                template = rego_tpl._args_is_not_defined_expression
+                rego_expressions.append(self.make_expression_from_val(template, val1=val_dict, val2=val))
+            else:
+                template = rego_tpl._var_is_not_defined_expression
+                rego_expressions.append(self.make_expression_from_val(template, val1=val))
+        elif "IsDefinedExpression" in ast_exp:
+            val = self.change_data_format(ast_exp["IsDefinedExpression"])
+            if "." in val:
+                val_key = val.split(".")[-1]
+                val_dict = val.replace(f".{val_key}", "")
+                template = rego_tpl._args_is_defined_expression
+                rego_expressions.append(self.make_expression_from_val(template, val1=val_dict, val2=val))
+            else:
+                template = rego_tpl._var_is_defined_expression
+                rego_expressions.append(self.make_expression_from_val(template, val1=val))
         # elif "GreaterThanExpression" in ast_exp:
         #     TODO: implementation
         # elif "LessThanExpression" in ast_exp:
@@ -356,8 +376,13 @@ class PolicyTranspiler:
         )
         return rego_block
 
-    def make_expression_from_val(self, template, lhs, rhs):
-        rego_block = template.safe_substitute({"lhs": lhs, "rhs": rhs})
+    def make_expression_from_val(self, template, lhs="", rhs="", val1="", val2=""):
+        if lhs and rhs:
+            rego_block = template.safe_substitute({"lhs": lhs, "rhs": rhs})
+        elif val1 and val2:
+            rego_block = template.safe_substitute({"val1": val1, "val2": val2})
+        elif val1:
+            rego_block = template.safe_substitute({"val1": val1})
         return rego_block
 
     def join_with_separator(self, str_or_list: str | list, separator: str = ", "):
