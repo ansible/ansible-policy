@@ -369,10 +369,46 @@ class ValidationType:
         elif "allow" in eval_result_value:
             if not eval_result_value["allow"]:
                 violation = True
+        elif "warn" in eval_result_value:
+            if eval_result_value["warn"]:
+                violation = True
+        elif "info" in eval_result_value:
+            if eval_result_value["info"]:
+                violation = True
+        elif "ignore" in eval_result_value:
+            if not eval_result_value["ignore"]:
+                violation = True
         if violation:
             return ValidationType.FAILURE
         else:
             return ValidationType.SUCCESS
+
+
+class ActionType:
+    BLOCK = "block"
+    INFO = "info"
+    WARN = "warn"
+    IGNORE = "ignore"
+    NONE = None
+
+    @staticmethod
+    def from_eval_result(eval_result: dict, is_target_type: bool):
+        if not is_target_type:
+            return ActionType.NONE
+
+        eval_result_value = eval_result.get("value", {})
+        if "deny" in eval_result_value:
+            return ActionType.BLOCK
+        elif "allow" in eval_result_value:
+            return ActionType.BLOCK
+        elif "info" in eval_result_value:
+            return ActionType.INFO
+        elif "warn" in eval_result_value:
+            return ActionType.WARN
+        elif "ignore" in eval_result_value:
+            return ActionType.IGNORE
+        else:
+            return ActionType.NONE
 
 
 @dataclass
@@ -380,6 +416,7 @@ class TargetResult(object):
     name: str = None
     lines: dict = field(default_factory=dict)
     validated: bool = None
+    action_type: str = ""
     message: str = None
 
 
@@ -390,10 +427,10 @@ class PolicyResult(object):
     violation: bool = False
     targets: List[TargetResult] = field(default_factory=list)
 
-    def add_target_result(self, obj: any, lines: dict, validated: bool, message: str):
+    def add_target_result(self, obj: any, lines: dict, validated: bool, message: str, action_type: str = "block"):
         target_name = getattr(obj, "name", None)
-        target = TargetResult(name=target_name, lines=lines, validated=validated, message=message)
-        if isinstance(validated, bool) and not validated:
+        target = TargetResult(name=target_name, lines=lines, validated=validated, message=message, action_type=action_type)
+        if isinstance(validated, bool) and not validated and action_type == "block":
             self.violation = True
         self.targets.append(target)
 
@@ -417,6 +454,7 @@ class FileResult(object):
         policy_result = self.get_policy_result(policy_name=policy_name)
         need_append = False
         validated = ValidationType.from_eval_result(eval_result=eval_result, is_target_type=is_target_type)
+        action_type = ActionType.from_eval_result(eval_result=eval_result, is_target_type=is_target_type)
         message = eval_result.get("message")
         if not policy_result:
             policy_result = PolicyResult(
@@ -425,7 +463,7 @@ class FileResult(object):
             )
             need_append = True
         if is_target_type:
-            policy_result.add_target_result(obj=obj, lines=lines, validated=validated, message=message)
+            policy_result.add_target_result(obj=obj, lines=lines, validated=validated, message=message, action_type=action_type)
         if need_append:
             self.policies.append(policy_result)
 
@@ -851,10 +889,13 @@ class ResultFormatter(object):
                             "filepath": filepath,
                             "lines": lines,
                             "message": t.message,
+                            "action_type": t.action_type,
                         }
                         not_validated_targets.append(detail)
         headers = []
         violation_per_type = {}
+        warning_per_type = {}
+        info_per_type = {}
         for d in not_validated_targets:
             _type = d.get("type", "")
             _type_up = _type.upper()
@@ -865,10 +906,19 @@ class ResultFormatter(object):
                 filepath = self.shorten_filepath(filepath)
             lines = d.get("lines", "")
             message = d.get("message", "").strip()
-            _list = violation_per_type.get(_type, [])
             pattern = f"{_type} {name} {filepath} {lines}"
-            if pattern not in _list:
-                violation_per_type[_type] = _list + [pattern]
+            if d["action_type"] == "block":
+                _list = violation_per_type.get(_type, [])
+                if pattern not in _list:
+                    violation_per_type[_type] = _list + [pattern]
+            if d["action_type"] == "warn":
+                _list = warning_per_type.get(_type, [])
+                if pattern not in _list:
+                    warning_per_type[_type] = _list + [pattern]
+            if d["action_type"] == "info":
+                _list = info_per_type.get(_type, [])
+                if pattern not in _list:
+                    info_per_type[_type] = _list + [pattern]
 
             file_info = f"{filepath} {lines}"
             if self.isatty:
@@ -878,10 +928,21 @@ class ResultFormatter(object):
                 print(header)
                 headers.append(header)
 
-            flag = "Not Validated"
-            if self.isatty:
-                flag = f"\033[91m{flag}\033[00m"
-                message = f"\033[90m{message}\033[00m"
+            if d["action_type"] == "block":
+                flag = "Not Validated"
+                if self.isatty:
+                    flag = f"\033[91m{flag}\033[00m"
+                    message = f"\033[90m{message}\033[00m"
+            elif d["action_type"] == "warn":
+                flag = "Warning"
+                if self.isatty:
+                    flag = f"\033[93m{flag}\033[00m"
+                    message = f"\033[90m{message}\033[00m"
+            elif d["action_type"] == "info":
+                flag = "Info"
+                if self.isatty:
+                    flag = f"\033[92m{flag}\033[00m"
+                    message = f"\033[90m{message}\033[00m"
             print(f"... {policy_name} {flag}")
             print(f"    {message}")
             print("")
@@ -899,20 +960,46 @@ class ResultFormatter(object):
             not_valid_label = f"\033[91m{not_valid_label}\033[00m"
         print(f"... {total_label}: {total_files}, {valid_label}: {valid_files}, {not_valid_label}: {not_valid_files}")
         print("")
-        count_str = ""
+        violation_count_str = ""
+        warn_count_str = ""
+        info_count_str = ""
         for _type, _list in violation_per_type.items():
             count = len(_list)
             plural = ""
             if count > 1:
                 plural = "s"
-            count_str = f"{count_str}, {count} {_type}{plural}"
-        if count_str:
-            count_str = count_str[2:]
-            violation_str = f"Violations are detected! in {count_str}"
+            violation_count_str = f"{violation_count_str}, {count} {_type}{plural}"
+        for _type, _list in warning_per_type.items():
+            count = len(_list)
+            plural = ""
+            if count > 1:
+                plural = "s"
+            warn_count_str = f"{warn_count_str}, {count} {_type}{plural}"
+        for _type, _list in info_per_type.items():
+            count = len(_list)
+            plural = ""
+            if count > 1:
+                plural = "s"
+            info_count_str = f"{info_count_str}, {count} {_type}{plural}"
+        if violation_count_str:
+            violation_count_str = violation_count_str[2:]
+            violation_str = f"Violations are detected! in {violation_count_str}"
             if self.isatty:
                 violation_str = f"\033[91m{violation_str}\033[00m"
             print(violation_str)
-        else:
+        if warn_count_str:
+            warn_count_str = warn_count_str[2:]
+            warn_str = f"Warnings messages on {warn_count_str}"
+            if self.isatty:
+                warn_str = f"\033[93m{warn_str}\033[00m"
+            print(warn_str)
+        if info_count_str:
+            info_count_str = info_count_str[2:]
+            info_str = f"Info messages on {info_count_str}"
+            if self.isatty:
+                info_str = f"\033[92m{info_str}\033[00m"
+            print(info_str)
+        if not violation_count_str and not warn_count_str and not info_count_str:
             violation_str = "No violations are detected"
             if self.isatty:
                 violation_str = f"\033[96m{violation_str}\033[00m"
