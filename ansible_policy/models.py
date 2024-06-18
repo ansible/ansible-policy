@@ -937,12 +937,12 @@ class ResultFormatter(object):
             elif d["action_type"] == "warn":
                 flag = "Warning"
                 if self.isatty:
-                    flag = f"\033[93m{flag}\033[00m"
+                    flag = f"\033[33m{flag}\033[00m"
                     message = f"\033[90m{message}\033[00m"
             elif d["action_type"] == "info":
                 flag = "Info"
                 if self.isatty:
-                    flag = f"\033[92m{flag}\033[00m"
+                    flag = f"\033[32m{flag}\033[00m"
                     message = f"\033[90m{message}\033[00m"
             print(f"... {policy_name} {flag}")
             print(f"    {message}")
@@ -990,15 +990,15 @@ class ResultFormatter(object):
             print(violation_str)
         if warn_count_str:
             warn_count_str = warn_count_str[2:]
-            warn_str = f"Warnings messages on {warn_count_str}"
+            warn_str = f"Warning messages present in {warn_count_str}"
             if self.isatty:
-                warn_str = f"\033[93m{warn_str}\033[00m"
+                warn_str = f"\033[33m{warn_str}\033[00m"
             print(warn_str)
         if info_count_str:
             info_count_str = info_count_str[2:]
-            info_str = f"Info messages on {info_count_str}"
+            info_str = f"Info messages present in {info_count_str}"
             if self.isatty:
-                info_str = f"\033[92m{info_str}\033[00m"
+                info_str = f"\033[32m{info_str}\033[00m"
             print(info_str)
         if not violation_count_str and not warn_count_str and not info_count_str:
             violation_str = "No violations are detected"
