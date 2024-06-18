@@ -24,7 +24,7 @@ import json
 from ansible_policy.policybook.rego_templates import TemplateManager
 from ansible_policy.policybook.json_generator import OPERATOR_MNEMONIC
 from ansible_policy.policybook.json_generator import generate_dict_policysets
-from ansible_policy.policybook.policy_parser import parse_policy_sets
+from ansible_policy.policybook.policy_parser import parse_policy_sets, VALID_ACTIONS
 from ansible_policy.policybook.rego_model import RegoPolicy, RegoFunc
 from ansible_policy.utils import init_logger
 
@@ -144,34 +144,21 @@ class PolicyTranspiler:
                 f.write(rego_output)
         return
 
-    # TODO: support all actions
     def action_to_rule(self, input: dict, conditions: list):
         action = input["Action"]
         rules = []
         action_type = action.get("action", "")
+        if action_type not in VALID_ACTIONS:
+            raise ValueError(f"{action_type} is not supported. supported actions are {VALID_ACTIONS}")
         action_args = action.get("action_args", "")
-        if action_type == "deny":
-            for cond in conditions:
-                if cond.name not in rules:
-                    rules.append(cond.name)
-            msg = action_args.get("msg", "")
-            print_msg = self.make_rego_print(msg)
-            rules.append(print_msg)
-            template = rego_tpl._deny_func
-            return self.make_func_from_cond("deny", template, rules)
-        elif action_type == "allow":
-            for cond in conditions:
-                if cond.name not in rules:
-                    rules.append(cond.name)
-            msg = action_args.get("msg", "")
-            print_msg = self.make_rego_print(msg)
-            rules.append(print_msg)
-            template = rego_tpl._allow_func
-            return self.make_func_from_cond("allow", template, rules)
-        # elif action_type == "info":
-        # elif action_type == "warn":
-        # elif action_type == "ignore":
-        return action_type, rules
+        for cond in conditions:
+            if cond.name not in rules:
+                rules.append(cond.name)
+        msg = action_args.get("msg", "")
+        print_msg = self.make_rego_print(msg)
+        rules.append(print_msg)
+        template = rego_tpl._action_func
+        return self.make_func_from_cond(action_type, template, rules)
 
     # func to convert each condition to rego rules
     def condition_to_rule(self, condition: dict, policy_name: str):

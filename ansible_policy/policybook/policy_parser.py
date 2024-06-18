@@ -2,6 +2,8 @@ from typing import Any, Dict, List
 import ansible_policy.policybook.policybook_models as pm
 from ansible_policy.policybook.condition_parser import parse_condition as parse_condition_value
 
+VALID_ACTIONS = ["allow", "deny", "info", "warn", "ignore"]
+
 
 def parse_hosts(hosts):
     if isinstance(hosts, str):
@@ -120,6 +122,8 @@ def parse_actions(rule: Dict) -> List[pm.Action]:
 
 def parse_action(action: Dict) -> pm.Action:
     action_name = list(action.keys())[0]
+    if action_name not in VALID_ACTIONS:
+        raise Exception(f"Unsupported action {action_name}. supported actions are {VALID_ACTIONS}")
     if action[action_name]:
         action_args = {k: v for k, v in action[action_name].items()}
     else:

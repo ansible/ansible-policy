@@ -1,14 +1,8 @@
 import string
 
 # action func
-deny = """
-deny = true if {
-    ${steps}
-} else = false
-"""
-
-allow = """
-allow = true if {
+action_func = """
+${func_name} = true if {
     ${steps}
 } else = false
 """
@@ -76,8 +70,7 @@ class TemplateManager:
     def __init__(self):
         self.templates = {}
         # action func
-        self._deny_func = self.add_template(deny)
-        self._allow_func = self.add_template(allow)
+        self._action_func = self.add_template(action_func)
         # condition func
         self._if_func = self.add_template(if_func)
         # operation
