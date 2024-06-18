@@ -385,7 +385,8 @@ class ValidationType:
 
 
 class ActionType:
-    BLOCK = "block"
+    DENY = "deny"
+    ALLOW = "allow"
     INFO = "info"
     WARN = "warn"
     IGNORE = "ignore"
@@ -398,9 +399,9 @@ class ActionType:
 
         eval_result_value = eval_result.get("value", {})
         if "deny" in eval_result_value:
-            return ActionType.BLOCK
+            return ActionType.DENY
         elif "allow" in eval_result_value:
-            return ActionType.BLOCK
+            return ActionType.ALLOW
         elif "info" in eval_result_value:
             return ActionType.INFO
         elif "warn" in eval_result_value:
@@ -907,7 +908,7 @@ class ResultFormatter(object):
             lines = d.get("lines", "")
             message = d.get("message", "").strip()
             pattern = f"{_type} {name} {filepath} {lines}"
-            if d["action_type"] == "block":
+            if d["action_type"] == "deny" or d["action_type"] == "allow":
                 _list = violation_per_type.get(_type, [])
                 if pattern not in _list:
                     violation_per_type[_type] = _list + [pattern]
@@ -928,7 +929,7 @@ class ResultFormatter(object):
                 print(header)
                 headers.append(header)
 
-            if d["action_type"] == "block":
+            if d["action_type"] == "deny" or d["action_type"] == "allow":
                 flag = "Not Validated"
                 if self.isatty:
                     flag = f"\033[91m{flag}\033[00m"
