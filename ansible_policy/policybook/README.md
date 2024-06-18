@@ -59,8 +59,7 @@ A condition can contain
  * Multiple conditions where any one of them has to match
  * Multiple conditions where not all one of them have to match
 
-Supported Operators
-*******************
+**Supported Operators**
 
 Conditions support the following operators:
 
@@ -74,8 +73,11 @@ Conditions support the following operators:
 | not in               | To check if a value in the left-hand side does not exist in the list on the right-hand side                        |
 | contains             | To check if the list on the left-hand side contains the value on the right-hand side                               |
 | not contains         | To check if the list on the left-hand side does not contain the value on the right-hand side                       |
-| has key              | To check if a value on the left-hand side exists as a key in dict on the right-hand side                           |
-| lack key             | To check if a value on the left-hand side does not exists as a key in dict on the right-hand side                  |
+| has key              | To check if a value on the right-hand side exists as a key in dict on the left-hand side                           |
+| lacks key             | To check if a value on the right-hand side does not exists as a key in dict on the left-hand side                  |
+| is defined           | To check if a variable is defined                                                                                  |
+| is not defined       | To check if a variable is not defined                                           |
+
 <!-- | >                    | The greater than operator for numbers                                                                              |
 | <                    | The less than operator for numbers                                                                                 |
 | >=                   | The greater than or equal to operator for numbers                                                                  |
@@ -83,9 +85,7 @@ Conditions support the following operators:
 <!-- | `+`                  | The addition operator for numbers                                                                                  |
 | `-`                  | The subtraction operator for numbers                                                                                |
 | `*`                  | The multiplication operator for numbers                                                                            | -->
-<!-- | is defined           | To check if a variable is defined                                                                                  |
-| is not defined       | To check if a variable is not defined, please see caveats listed below                                             |
-| is match(pattern, ignorecase=true) | To check if the pattern exists at the beginning of the string. Regex supported                           |
+<!-- | is match(pattern, ignorecase=true) | To check if the pattern exists at the beginning of the string. Regex supported                           |
 | is not match(pattern, ignorecase=true) | To check if the pattern does not exist at the beginning of the string. Regex supported                     |
 | is search(pattern, ignorecase=true) | To check if the pattern exists anywhere in the string. Regex supported                                    |
 | is not search(pattern, ignorecase=true) | To check if the pattern does not exist anywhere in the string. Regex supported                              |
