@@ -428,11 +428,12 @@ class PolicyResult(object):
     violation: bool = False
     targets: List[TargetResult] = field(default_factory=list)
 
-    def add_target_result(self, obj: any, lines: dict, validated: bool, message: str, action_type: str = "block"):
+    def add_target_result(self, obj: any, lines: dict, validated: bool, message: str, action_type: str):
         target_name = getattr(obj, "name", None)
         target = TargetResult(name=target_name, lines=lines, validated=validated, message=message, action_type=action_type)
-        if isinstance(validated, bool) and not validated and action_type == "block":
-            self.violation = True
+        if isinstance(validated, bool) and not validated:
+            if action_type == "deny" or action_type == "allow":
+                self.violation = True
         self.targets.append(target)
 
 
