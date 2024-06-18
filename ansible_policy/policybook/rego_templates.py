@@ -1,14 +1,8 @@
 import string
 
 # action func
-deny = """
-deny = true if {
-    ${steps}
-} else = false
-"""
-
-allow = """
-allow = true if {
+action_func = """
+${func_name} = true if {
     ${steps}
 } else = false
 """
@@ -33,6 +27,16 @@ key_in_dict_condition = """${lhs}
 key_not_in_dict_condition = """${lhs}
     input_keys := [key | ${lhs}[key]; key == ${rhs}]
     count(input_keys) == 0"""
+
+args_is_not_defined_condition = """${val1}
+    not ${val2}"""
+
+args_is_defined_condition = """${val1}
+    ${val2}"""
+
+var_is_not_defined_condition = """not ${val1}"""
+
+var_is_defined_condition = """${val1}"""
 
 # rego util funcs
 item_not_in_list_func = """
@@ -66,8 +70,7 @@ class TemplateManager:
     def __init__(self):
         self.templates = {}
         # action func
-        self._deny_func = self.add_template(deny)
-        self._allow_func = self.add_template(allow)
+        self._action_func = self.add_template(action_func)
         # condition func
         self._if_func = self.add_template(if_func)
         # operation
@@ -75,6 +78,10 @@ class TemplateManager:
         self._item_in_list_expression = self.add_template(item_in_list_condition)
         self._key_in_dict_expression = self.add_template(key_in_dict_condition)
         self._key_not_in_dict_expression = self.add_template(key_not_in_dict_condition)
+        self._args_is_not_defined_expression = self.add_template(args_is_not_defined_condition)
+        self._args_is_defined_expression = self.add_template(args_is_defined_condition)
+        self._var_is_not_defined_expression = self.add_template(var_is_not_defined_condition)
+        self._var_is_defined_expression = self.add_template(var_is_defined_condition)
         # util funcs
         self._item_not_in_list_func = item_not_in_list_func
         self._item_in_list_func = item_in_list_func

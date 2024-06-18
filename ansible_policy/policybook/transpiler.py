@@ -20,10 +20,11 @@ import argparse
 import os
 import glob
 import re
+import json
 from ansible_policy.policybook.rego_templates import TemplateManager
 from ansible_policy.policybook.json_generator import OPERATOR_MNEMONIC
 from ansible_policy.policybook.json_generator import generate_dict_policysets
-from ansible_policy.policybook.policy_parser import parse_policy_sets
+from ansible_policy.policybook.policy_parser import parse_policy_sets, VALID_ACTIONS
 from ansible_policy.policybook.rego_model import RegoPolicy, RegoFunc
 from ansible_policy.utils import init_logger
 
@@ -109,8 +110,7 @@ class PolicyTranspiler:
             rego_policy = RegoPolicy()
             # package
             _package = pol["name"]
-            if " " in pol["name"]:
-                _package = pol["name"].replace(" ", "_").replace("-", "_").replace("?", "")
+            _package = self.clean_error_token(pol["name"])
             rego_policy.package = _package
             # import statements
             rego_policy.import_statements = [
@@ -144,34 +144,21 @@ class PolicyTranspiler:
                 f.write(rego_output)
         return
 
-    # TODO: support all actions
     def action_to_rule(self, input: dict, conditions: list):
         action = input["Action"]
         rules = []
         action_type = action.get("action", "")
+        if action_type not in VALID_ACTIONS:
+            raise ValueError(f"{action_type} is not supported. supported actions are {VALID_ACTIONS}")
         action_args = action.get("action_args", "")
-        if action_type == "deny":
-            for cond in conditions:
-                if cond.name not in rules:
-                    rules.append(cond.name)
-            msg = action_args.get("msg", "")
-            print_msg = self.make_rego_print(msg)
-            rules.append(print_msg)
-            template = rego_tpl._deny_func
-            return self.make_func_from_cond("deny", template, rules)
-        elif action_type == "allow":
-            for cond in conditions:
-                if cond.name not in rules:
-                    rules.append(cond.name)
-            msg = action_args.get("msg", "")
-            print_msg = self.make_rego_print(msg)
-            rules.append(print_msg)
-            template = rego_tpl._allow_func
-            return self.make_func_from_cond("allow", template, rules)
-        # elif action_type == "info":
-        # elif action_type == "warn":
-        # elif action_type == "ignore":
-        return action_type, rules
+        for cond in conditions:
+            if cond.name not in rules:
+                rules.append(cond.name)
+        msg = action_args.get("msg", "")
+        print_msg = self.make_rego_print(msg)
+        rules.append(print_msg)
+        template = rego_tpl._action_func
+        return self.make_func_from_cond(action_type, template, rules)
 
     # func to convert each condition to rego rules
     def condition_to_rule(self, condition: dict, policy_name: str):
@@ -194,12 +181,15 @@ class PolicyTranspiler:
     def make_rego_print(self, input_text):
         pattern = r"{{\s*([^}]+)\s*}}"
         replacement = r"%v"
-
+        # replace vars part to rego style
         result = re.sub(pattern, replacement, input_text)
         vals = re.findall(pattern, input_text)
         if len(vals) != 0:
-            vals = [v.strip() for v in vals]
+            # Strip whitespace from all string values in the list
+            vals = [v.strip() if isinstance(v, str) else v for v in vals]
             val_str = ", ".join(vals)
+            # replace " with '
+            result = result.replace('"', "'")
             return f'print(sprintf("{result}", [{val_str}]))'
         else:
             return f'print("{input_text}")'
@@ -208,8 +198,7 @@ class PolicyTranspiler:
     def convert_condition_func(self, condition: dict, policy_name: str, index: int = 0):
         rf = RegoFunc()
         func_name = f"{policy_name}_{index}"
-        if " " in func_name:
-            func_name = func_name.replace(" ", "_").replace("-", "_").replace("?", "")
+        func_name = self.clean_error_token(func_name)
         rf.name = func_name
         if "AndExpression" in condition:
             rego_expressions = []
@@ -241,7 +230,7 @@ class PolicyTranspiler:
         util_funcs = []
         if "EqualsExpression" in ast_exp:
             lhs = ast_exp["EqualsExpression"]["lhs"]
-            lhs_val = list(lhs.values())[0]
+            lhs_val = self.change_data_format(lhs)
             rhs = ast_exp["EqualsExpression"]["rhs"]
             for type, val in rhs.items():
                 if type == "String":
@@ -251,7 +240,7 @@ class PolicyTranspiler:
                     rego_expressions.append(f"{lhs_val}")
         elif "NotEqualsExpression" in ast_exp:
             lhs = ast_exp["NotEqualsExpression"]["lhs"]
-            lhs_val = list(lhs.values())[0]
+            lhs_val = self.change_data_format(lhs)
             rhs = ast_exp["NotEqualsExpression"]["rhs"]
             for type, val in rhs.items():
                 if type == "String":
@@ -262,17 +251,17 @@ class PolicyTranspiler:
                     rego_expressions.append(f"not {lhs_val}")
         elif "ItemNotInListExpression" in ast_exp:
             lhs = ast_exp["ItemNotInListExpression"]["lhs"]
-            lhs_val = list(lhs.values())[0]
+            lhs_val = self.change_data_format(lhs)
             rhs = ast_exp["ItemNotInListExpression"]["rhs"]
-            rhs_val = list(rhs.values())[0]
+            rhs_val = self.change_data_format(rhs)
             template = rego_tpl._item_not_in_list_expression
             util_funcs = [rego_tpl._to_list_func, rego_tpl._item_not_in_list_func]
             rego_expressions.append(self.make_expression_from_val(template, lhs=lhs_val, rhs=rhs_val))
         elif "ItemInListExpression" in ast_exp:
             lhs = ast_exp["ItemInListExpression"]["lhs"]
-            lhs_val = list(lhs.values())[0]
+            lhs_val = self.change_data_format(lhs)
             rhs = ast_exp["ItemInListExpression"]["rhs"]
-            rhs_val = list(rhs.values())[0]
+            rhs_val = self.change_data_format(rhs)
             template = rego_tpl._item_in_list_expression
             util_funcs = [rego_tpl._to_list_func, rego_tpl._item_in_list_func]
             rego_expressions.append(self.make_expression_from_val(template, lhs=lhs_val, rhs=rhs_val))
@@ -280,34 +269,54 @@ class PolicyTranspiler:
             # ListContainsItemExpression is basically the same as ItemInListExpression
             #   except for the difference in the position of the lhs and rhs values.
             lhs = ast_exp["ListContainsItemExpression"]["lhs"]
-            lhs_val = list(lhs.values())[0]
+            lhs_val = self.change_data_format(lhs)
             rhs = ast_exp["ListContainsItemExpression"]["rhs"]
-            rhs_val = list(rhs.values())[0]
+            rhs_val = self.change_data_format(rhs)
             template = rego_tpl._item_in_list_expression
             util_funcs = [rego_tpl._to_list_func, rego_tpl._item_in_list_func]
             rego_expressions.append(self.make_expression_from_val(template, lhs=rhs_val, rhs=lhs_val))
         elif "ListNotContainsItemExpression" in ast_exp:
             lhs = ast_exp["ItemNotInListExpression"]["lhs"]
-            lhs_val = list(lhs.values())[0]
+            lhs_val = self.change_data_format(lhs)
             rhs = ast_exp["ItemNotInListExpression"]["rhs"]
-            rhs_val = list(rhs.values())[0]
+            rhs_val = self.change_data_format(rhs)
             template = rego_tpl._item_not_in_list_expression
             util_funcs = [rego_tpl._to_list_func, rego_tpl._item_not_in_list_func]
             rego_expressions.append(self.make_expression_from_val(template, lhs=rhs_val, rhs=lhs_val))
         elif "KeyInDictExpression" in ast_exp:
             lhs = ast_exp["KeyInDictExpression"]["lhs"]
-            lhs_val = list(lhs.values())[0]
+            lhs_val = self.change_data_format(lhs)
             rhs = ast_exp["KeyInDictExpression"]["rhs"]
-            rhs_val = list(rhs.values())[0].replace('"', "")
+            rhs_val = self.change_data_format(rhs).replace('"', "")
             template = rego_tpl._key_in_dict_expression
             rego_expressions.append(self.make_expression_from_val(template, lhs=lhs_val, rhs=f'"{rhs_val}"'))
         elif "KeyNotInDictExpression" in ast_exp:
             lhs = ast_exp["KeyNotInDictExpression"]["lhs"]
-            lhs_val = list(lhs.values())[0]
+            lhs_val = self.change_data_format(lhs)
             rhs = ast_exp["KeyNotInDictExpression"]["rhs"]
-            rhs_val = list(rhs.values())[0].replace('"', "")
+            rhs_val = self.change_data_format(rhs).replace('"', "")
             template = rego_tpl._key_not_in_dict_expression
             rego_expressions.append(self.make_expression_from_val(template, lhs=lhs_val, rhs=f'"{rhs_val}"'))
+        elif "IsNotDefinedExpression" in ast_exp:
+            val = self.change_data_format(ast_exp["IsNotDefinedExpression"])
+            if "." in val:
+                val_key = val.split(".")[-1]
+                val_dict = val.replace(f".{val_key}", "")
+                template = rego_tpl._args_is_not_defined_expression
+                rego_expressions.append(self.make_expression_from_val(template, val1=val_dict, val2=val))
+            else:
+                template = rego_tpl._var_is_not_defined_expression
+                rego_expressions.append(self.make_expression_from_val(template, val1=val))
+        elif "IsDefinedExpression" in ast_exp:
+            val = self.change_data_format(ast_exp["IsDefinedExpression"])
+            if "." in val:
+                val_key = val.split(".")[-1]
+                val_dict = val.replace(f".{val_key}", "")
+                template = rego_tpl._args_is_defined_expression
+                rego_expressions.append(self.make_expression_from_val(template, val1=val_dict, val2=val))
+            else:
+                template = rego_tpl._var_is_defined_expression
+                rego_expressions.append(self.make_expression_from_val(template, val1=val))
         # elif "GreaterThanExpression" in ast_exp:
         #     TODO: implementation
         # elif "LessThanExpression" in ast_exp:
@@ -323,6 +332,18 @@ class PolicyTranspiler:
         # elif "AssignmentExpression" in ast_exp:
         #     TODO: implementation
         return rego_expressions, util_funcs
+
+    def change_data_format(self, data):
+        if isinstance(data, list):
+            return json.dumps([self.change_data_format(item) for item in data])
+        elif isinstance(data, dict) and "String" in data:
+            return data["String"]
+        elif isinstance(data, dict) and "Input" in data:
+            return data["Input"]
+        elif isinstance(data, dict) and "Boolean" in data:
+            return data["Boolean"]
+        else:
+            return data
 
     def has_expression(self, data):
         keys = data.keys()
@@ -342,8 +363,13 @@ class PolicyTranspiler:
         )
         return rego_block
 
-    def make_expression_from_val(self, template, lhs, rhs):
-        rego_block = template.safe_substitute({"lhs": lhs, "rhs": rhs})
+    def make_expression_from_val(self, template, lhs="", rhs="", val1="", val2=""):
+        if lhs and rhs:
+            rego_block = template.safe_substitute({"lhs": lhs, "rhs": rhs})
+        elif val1 and val2:
+            rego_block = template.safe_substitute({"val1": val1, "val2": val2})
+        elif val1:
+            rego_block = template.safe_substitute({"val1": val1})
         return rego_block
 
     def join_with_separator(self, str_or_list: str | list, separator: str = ", "):
@@ -353,6 +379,9 @@ class PolicyTranspiler:
         elif isinstance(str_or_list, list):
             value = separator.join(str_or_list)
         return value
+
+    def clean_error_token(self, in_str):
+        return in_str.replace(" ", "_").replace("-", "_").replace("?", "").replace("(", "_").replace(")", "_")
 
 
 def load_file(input):
