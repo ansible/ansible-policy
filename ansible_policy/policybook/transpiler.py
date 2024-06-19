@@ -343,7 +343,7 @@ class PolicyTranspiler:
         if isinstance(data, list):
             return json.dumps([self.change_data_format(item) for item in data])
         elif isinstance(data, dict) and "String" in data:
-            return data["String"]
+            return f'"{data["String"]}"'
         elif isinstance(data, dict) and "Input" in data:
             return data["Input"]
         elif isinstance(data, dict) and "Variable" in data:

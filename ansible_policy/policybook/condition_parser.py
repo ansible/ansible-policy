@@ -316,11 +316,14 @@ def main():
         'input["kubernetes.core.k8s"].kubeconfig is not defined',
         # defined
         'input["kubernetes.core.k8s"].kubeconfig is defined',
+        # vars
+        'input["ansible.builtin.package"].name != invalid_package',
     ]
 
+    vars = {"invalid_package": "aaa"}
     for s in test_condition_strings:
         print(f"condition string: \n{s}\n")
-        r = parse_condition(s)
+        r = parse_condition(s, vars)
         print(f"parse result:\n{r}\n\n")
 
 
