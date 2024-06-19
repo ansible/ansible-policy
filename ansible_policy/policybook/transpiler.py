@@ -235,9 +235,12 @@ class PolicyTranspiler:
             for type, val in rhs.items():
                 if type == "String":
                     rhs_val = val
-                    rego_expressions.append(f"{lhs_val} == {rhs_val}")
+                    rego_expressions.append(f'{lhs_val} == "{rhs_val}"')
                 elif type == "Boolean":
                     rego_expressions.append(f"{lhs_val}")
+                elif type == "Variable":
+                    rhs_val = val
+                    rego_expressions.append(f"{lhs_val} == {rhs_val}")
         elif "NotEqualsExpression" in ast_exp:
             lhs = ast_exp["NotEqualsExpression"]["lhs"]
             lhs_val = self.change_data_format(lhs)
@@ -245,10 +248,13 @@ class PolicyTranspiler:
             for type, val in rhs.items():
                 if type == "String":
                     rhs_val = val
-                    rego_expressions.append(f"{lhs_val} != {rhs_val}")
+                    rego_expressions.append(f'{lhs_val} != "{rhs_val}"')
                 elif type == "Boolean":
                     rhs_val = val
                     rego_expressions.append(f"not {lhs_val}")
+                elif type == "Variable":
+                    rhs_val = val
+                    rego_expressions.append(f"{lhs_val} == {rhs_val}")
         elif "ItemNotInListExpression" in ast_exp:
             lhs = ast_exp["ItemNotInListExpression"]["lhs"]
             lhs_val = self.change_data_format(lhs)
@@ -340,6 +346,8 @@ class PolicyTranspiler:
             return data["String"]
         elif isinstance(data, dict) and "Input" in data:
             return data["Input"]
+        elif isinstance(data, dict) and "Variable" in data:
+            return data["Variable"]
         elif isinstance(data, dict) and "Boolean" in data:
             return data["Boolean"]
         else:

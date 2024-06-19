@@ -42,6 +42,8 @@ from ansible_rulebook.exception import (
     SelectOperatorException,
 )
 
+from typing import Dict
+
 ParserElement.enable_packrat()
 
 from ansible_rulebook.condition_types import (  # noqa: E402
@@ -91,49 +93,6 @@ VALID_SELECT_OPERATORS = [
 SUPPORTED_SEARCH_KINDS = ("match", "regex", "search")
 
 logger = logging.getLogger(__name__)
-
-number_t = pyparsing_common.number.copy().add_parse_action(lambda toks: to_condition_type(toks[0]))
-
-ident = pyparsing_common.identifier
-valid_prefix = Keyword("input")
-varname = (
-    Combine(
-        valid_prefix
-        + ZeroOrMore(
-            ("." + ident)
-            | (("[") + (originalTextFor(QuotedString('"')) | originalTextFor(QuotedString("'")) | pyparsing_common.signed_integer) + ("]"))
-        )
-    )
-    .copy()
-    .add_parse_action(lambda toks: Identifier(toks[0]))
-)
-true = Literal("true") | Literal("True")
-false = Literal("false") | Literal("False")
-boolean = (true | false).copy().add_parse_action(lambda toks: Boolean(toks[0].lower()))
-
-null_t = Literal("null").copy().add_parse_action(lambda toks: Null())
-
-string1 = QuotedString("'").copy().add_parse_action(lambda toks: String(toks[0]))
-string2 = QuotedString('"').copy().add_parse_action(lambda toks: String(toks[0]))
-
-plain_string = Word(alphanums + "_" + ".").copy().add_parse_action(lambda toks: String(toks[0]))
-allowed_values = number_t | boolean | null_t | string1 | string2
-key_value = ident + Suppress("=") + allowed_values
-string_search_t = (
-    one_of("regex match search") + Suppress("(") + Group(Optional(DelimitedList(string1 | string2 | varname | key_value))) + Suppress(")")
-)
-
-list_values = Forward()
-
-allowed_values = number_t | boolean | null_t | string1 | string2
-
-delim_value = Group(DelimitedList(number_t | null_t | boolean | varname | string1 | string2 | list_values))
-
-list_values <<= Suppress("[") + delim_value + Suppress("]")
-
-selectattr_t = Literal("selectattr") + Suppress("(") + Group(DelimitedList(allowed_values | list_values | varname)) + Suppress(")")
-
-select_t = Literal("select") + Suppress("(") + Group(DelimitedList(allowed_values | list_values | varname)) + Suppress(")")
 
 
 def as_list(var):
@@ -191,78 +150,135 @@ def OperatorExpressionFactory(tokens):
     return return_value
 
 
-all_terms = selectattr_t | select_t | string_search_t | list_values | number_t | null_t | boolean | varname | plain_string | string1 | string2
-condition = infix_notation(
-    base_expr=all_terms,
-    op_list=[
-        (
-            ">=",
-            2,
-            OpAssoc.LEFT,
-            lambda toks: OperatorExpressionFactory(toks[0]),
-        ),
-        (
-            "<=",
-            2,
-            OpAssoc.LEFT,
-            lambda toks: OperatorExpressionFactory(toks[0]),
-        ),
-        (
-            one_of("< >"),
-            2,
-            OpAssoc.LEFT,
-            lambda toks: OperatorExpressionFactory(toks[0]),
-        ),
-        (
-            "!=",
-            2,
-            OpAssoc.LEFT,
-            lambda toks: OperatorExpressionFactory(toks[0]),
-        ),
-        (
-            "==",
-            2,
-            OpAssoc.LEFT,
-            lambda toks: OperatorExpressionFactory(toks[0]),
-        ),
-        (
-            one_of(strs=["is not", "is"]),
-            2,
-            OpAssoc.LEFT,
-            lambda toks: OperatorExpressionFactory(toks[0]),
-        ),
-        (
-            one_of(
-                strs=["not in", "in", "not contains", "contains"],
-                caseless=True,
-                as_keyword=True,
-            ),
-            2,
-            OpAssoc.LEFT,
-            lambda toks: OperatorExpressionFactory(toks[0]),
-        ),
-        (
-            one_of(
-                strs=["has key", "lacks key"],
-                caseless=True,
-                as_keyword=True,
-            ),
-            2,
-            OpAssoc.LEFT,
-            lambda toks: OperatorExpressionFactory(toks[0]),
-        ),
-        ("not", 1, OpAssoc.RIGHT, lambda toks: NegateExpression(*toks[0])),
-        (
-            one_of(["and", "or"]),
-            2,
-            OpAssoc.LEFT,
-            lambda toks: OperatorExpressionFactory(toks[0]),
-        ),
-    ],
-).add_parse_action(lambda toks: Condition(toks[0]))
+def make_valid_prefix(vars: Dict):
+    valid_prefix = Keyword("input")
+    if not vars:
+        return valid_prefix
+    for prefix in vars.keys():
+        valid_prefix |= Keyword(prefix)
+    return valid_prefix
 
 
-def parse_condition(condition_string: str) -> Condition:
+def define_condition(vars: Dict):
+    number_t = pyparsing_common.number.copy().add_parse_action(lambda toks: to_condition_type(toks[0]))
+
+    ident = pyparsing_common.identifier
+
+    valid_prefix = make_valid_prefix(vars)
+    varname = (
+        Combine(
+            valid_prefix
+            + ZeroOrMore(
+                ("." + ident)
+                | (("[") + (originalTextFor(QuotedString('"')) | originalTextFor(QuotedString("'")) | pyparsing_common.signed_integer) + ("]"))
+            )
+        )
+        .copy()
+        .add_parse_action(lambda toks: Identifier(toks[0]))
+    )
+    true = Literal("true") | Literal("True")
+    false = Literal("false") | Literal("False")
+    boolean = (true | false).copy().add_parse_action(lambda toks: Boolean(toks[0].lower()))
+
+    null_t = Literal("null").copy().add_parse_action(lambda toks: Null())
+
+    string1 = QuotedString("'").copy().add_parse_action(lambda toks: String(toks[0]))
+    string2 = QuotedString('"').copy().add_parse_action(lambda toks: String(toks[0]))
+
+    plain_string = Word(alphanums + "_").copy().add_parse_action(lambda toks: String(toks[0]))
+    allowed_values = number_t | boolean | null_t | string1 | string2
+    key_value = ident + Suppress("=") + allowed_values
+    string_search_t = (
+        one_of("regex match search") + Suppress("(") + Group(Optional(DelimitedList(string1 | string2 | varname | key_value))) + Suppress(")")
+    )
+
+    list_values = Forward()
+
+    allowed_values = number_t | boolean | null_t | string1 | string2
+
+    delim_value = Group(DelimitedList(number_t | null_t | boolean | varname | string1 | string2 | list_values))
+
+    list_values <<= Suppress("[") + delim_value + Suppress("]")
+
+    selectattr_t = Literal("selectattr") + Suppress("(") + Group(DelimitedList(allowed_values | list_values | varname)) + Suppress(")")
+
+    select_t = Literal("select") + Suppress("(") + Group(DelimitedList(allowed_values | list_values | varname)) + Suppress(")")
+
+    all_terms = selectattr_t | select_t | string_search_t | list_values | number_t | null_t | boolean | varname | plain_string | string1 | string2
+
+    condition = infix_notation(
+        base_expr=all_terms,
+        op_list=[
+            (
+                ">=",
+                2,
+                OpAssoc.LEFT,
+                lambda toks: OperatorExpressionFactory(toks[0]),
+            ),
+            (
+                "<=",
+                2,
+                OpAssoc.LEFT,
+                lambda toks: OperatorExpressionFactory(toks[0]),
+            ),
+            (
+                one_of("< >"),
+                2,
+                OpAssoc.LEFT,
+                lambda toks: OperatorExpressionFactory(toks[0]),
+            ),
+            (
+                "!=",
+                2,
+                OpAssoc.LEFT,
+                lambda toks: OperatorExpressionFactory(toks[0]),
+            ),
+            (
+                "==",
+                2,
+                OpAssoc.LEFT,
+                lambda toks: OperatorExpressionFactory(toks[0]),
+            ),
+            (
+                one_of(strs=["is not", "is"]),
+                2,
+                OpAssoc.LEFT,
+                lambda toks: OperatorExpressionFactory(toks[0]),
+            ),
+            (
+                one_of(
+                    strs=["not in", "in", "not contains", "contains"],
+                    caseless=True,
+                    as_keyword=True,
+                ),
+                2,
+                OpAssoc.LEFT,
+                lambda toks: OperatorExpressionFactory(toks[0]),
+            ),
+            (
+                one_of(
+                    strs=["has key", "lacks key"],
+                    caseless=True,
+                    as_keyword=True,
+                ),
+                2,
+                OpAssoc.LEFT,
+                lambda toks: OperatorExpressionFactory(toks[0]),
+            ),
+            ("not", 1, OpAssoc.RIGHT, lambda toks: NegateExpression(*toks[0])),
+            (
+                one_of(["and", "or"]),
+                2,
+                OpAssoc.LEFT,
+                lambda toks: OperatorExpressionFactory(toks[0]),
+            ),
+        ],
+    ).add_parse_action(lambda toks: Condition(toks[0]))
+    return condition
+
+
+def parse_condition(condition_string: str, vars: Dict) -> Condition:
+    condition = define_condition(vars)
     condition.debug = True
     condition.parseString(condition_string, parse_all=True)[0]
     try:
