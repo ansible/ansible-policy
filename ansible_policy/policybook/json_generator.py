@@ -34,7 +34,6 @@ from ansible_rulebook.condition_types import (
 )
 from ansible_rulebook.exception import (
     InvalidAssignmentException,
-    InvalidIdentifierException,
 )
 from ansible_policy.policybook.policybook_models import (
     Action,
@@ -76,9 +75,7 @@ def visit_condition(parsed_condition: ConditionTypes):
         if parsed_condition.value.startswith("input"):
             return {"Input": parsed_condition.value}
         else:
-            msg = f"Invalid identifier : {parsed_condition.value} " + "Should start with input."
-            raise InvalidIdentifierException(msg)
-
+            return {"Variable": parsed_condition.value}
     elif isinstance(parsed_condition, String):
         return {"String": parsed_condition.value}
     elif isinstance(parsed_condition, Null):

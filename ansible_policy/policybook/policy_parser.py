@@ -1,6 +1,8 @@
 from typing import Any, Dict, List
 import ansible_policy.policybook.policybook_models as pm
-from ansible_policy.policybook.condition_parser import parse_condition as parse_condition_value
+from ansible_policy.policybook.condition_parser import (
+    parse_condition as parse_condition_value,
+)
 
 VALID_ACTIONS = ["allow", "deny", "info", "warn", "ignore"]
 
@@ -43,14 +45,14 @@ def parse_policy_sets(policy_sets: Dict) -> List[pm.PolicySet]:
                 name=name,
                 hosts=parse_hosts(policy_set["hosts"]),
                 vars=parse_vars(policy_set.get("vars", {})),
-                policies=parse_policies(policy_set.get("policies", {})),
+                policies=parse_policies(policy_set.get("policies", {}), policy_set.get("vars", {})),
                 match_multiple_policies=policy_set.get("match_multiple_policies", False),
             )
         )
     return policy_set_list
 
 
-def parse_policies(policies: Dict) -> List[pm.Policy]:
+def parse_policies(policies: Dict, vars: Dict) -> List[pm.Policy]:
     pol_list = []
     pol_names = []
 
@@ -78,7 +80,7 @@ def parse_policies(policies: Dict) -> List[pm.Policy]:
 
         parsed_pol = pm.Policy(
             name=name,
-            condition=parse_condition(pol["condition"]),
+            condition=parse_condition(pol["condition"], vars),
             actions=parse_actions(pol),
             enabled=pol.get("enabled", True),
             tags=tags,
@@ -90,18 +92,18 @@ def parse_policies(policies: Dict) -> List[pm.Policy]:
     return pol_list
 
 
-def parse_condition(condition: Any) -> pm.Condition:
+def parse_condition(condition: Any, vars: Dict) -> pm.Condition:
     if isinstance(condition, str):
-        return pm.Condition("all", [parse_condition_value(condition)])
+        return pm.Condition("all", [parse_condition_value(condition, vars)])
     elif isinstance(condition, bool):
-        return pm.Condition("all", [parse_condition_value(str(condition))])
+        return pm.Condition("all", [parse_condition_value(str(condition), vars)])
     elif isinstance(condition, dict):
         keys = list(condition.keys())
         if len(condition) == 1 and keys[0] in ["any", "all", "not_all"]:
             when = keys[0]
             return pm.Condition(
                 when,
-                [parse_condition_value(str(c)) for c in condition[when]],
+                [parse_condition_value(str(c), vars) for c in condition[when]],
             )
         else:
             raise Exception(f"Condition should have one of any, all, not_all: {condition}")
