@@ -23,6 +23,10 @@ clone this repository
 
 ### 3. Install `ansbile-policy` command
 
+Ansible Policy requires Python `3.11 or later`. Please install it before this step.
+
+The following command installs `ansible-policy` command and dependency packages.
+
 ```bash
 $ cd ansible-policy
 $ pip install -e .
