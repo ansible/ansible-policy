@@ -174,6 +174,7 @@ class PolicyTranspiler:
             funcs.extend(_funcs)
             for _f in _funcs:
                 used_util_funcs.extend(_f.called_util_funcs)
+        # TODO: support NotAllCondition
         # util funcs
         used_util_funcs = list(set(used_util_funcs))
         return funcs, used_util_funcs
@@ -254,7 +255,7 @@ class PolicyTranspiler:
                     rego_expressions.append(f"not {lhs_val}")
                 elif type == "Variable":
                     rhs_val = val
-                    rego_expressions.append(f"{lhs_val} == {rhs_val}")
+                    rego_expressions.append(f"{lhs_val} != {rhs_val}")
         elif "ItemNotInListExpression" in ast_exp:
             lhs = ast_exp["ItemNotInListExpression"]["lhs"]
             lhs_val = self.change_data_format(lhs)
