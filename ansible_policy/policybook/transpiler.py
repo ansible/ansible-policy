@@ -242,6 +242,9 @@ class PolicyTranspiler:
                 elif type == "Variable":
                     rhs_val = val
                     rego_expressions.append(f"{lhs_val} == {rhs_val}")
+                elif type == "Integer":
+                    rhs_val = val
+                    rego_expressions.append(f"{lhs_val} == {rhs_val}")
         elif "NotEqualsExpression" in ast_exp:
             lhs = ast_exp["NotEqualsExpression"]["lhs"]
             lhs_val = self.change_data_format(lhs)
@@ -254,6 +257,9 @@ class PolicyTranspiler:
                     rhs_val = val
                     rego_expressions.append(f"not {lhs_val}")
                 elif type == "Variable":
+                    rhs_val = val
+                    rego_expressions.append(f"{lhs_val} != {rhs_val}")
+                elif type == "Integer":
                     rhs_val = val
                     rego_expressions.append(f"{lhs_val} != {rhs_val}")
         elif "ItemNotInListExpression" in ast_exp:
@@ -351,6 +357,8 @@ class PolicyTranspiler:
             return data["Variable"]
         elif isinstance(data, dict) and "Boolean" in data:
             return data["Boolean"]
+        elif isinstance(data, dict) and "Integer" in data:
+            return data["Integer"]
         else:
             return data
 
