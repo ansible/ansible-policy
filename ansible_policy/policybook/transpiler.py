@@ -382,13 +382,6 @@ class PolicyTranspiler:
             rhs = ast_exp["LessThanOrEqualToExpression"]["rhs"]
             rhs_val = self.change_data_format(rhs)
             rego_expressions.append(f"{lhs_val} <= {rhs_val}")
-
-        # elif "AdditionExpression" in ast_exp:
-        #     TODO: implementation
-        # elif "SubtractionExpression" in ast_exp:
-        #     TODO: implementation
-        # elif "AssignmentExpression" in ast_exp:
-        #     TODO: implementation
         return rego_expressions, util_funcs
 
     def change_data_format(self, data):
