@@ -201,6 +201,7 @@ class PolicyTranspiler:
         func_name = f"{policy_name}_{index}"
         func_name = self.clean_error_token(func_name)
         rf.name = func_name
+        # TODO: support multiple "and", "or" condition
         if "AndExpression" in condition:
             rego_expressions = []
             util_funcs = []
@@ -247,33 +248,20 @@ class PolicyTranspiler:
             lhs_val = self.change_data_format(lhs)
             rhs = ast_exp["EqualsExpression"]["rhs"]
             for type, val in rhs.items():
-                if type == "String":
-                    rhs_val = val
-                    rego_expressions.append(f'{lhs_val} == "{rhs_val}"')
-                elif type == "Boolean":
+                if type == "Boolean":
                     rego_expressions.append(f"{lhs_val}")
-                elif type == "Variable":
-                    rhs_val = val
-                    rego_expressions.append(f"{lhs_val} == {rhs_val}")
-                elif type == "Integer":
-                    rhs_val = val
+                else:
+                    rhs_val = self.change_data_format(rhs)
                     rego_expressions.append(f"{lhs_val} == {rhs_val}")
         elif "NotEqualsExpression" in ast_exp:
             lhs = ast_exp["NotEqualsExpression"]["lhs"]
             lhs_val = self.change_data_format(lhs)
             rhs = ast_exp["NotEqualsExpression"]["rhs"]
             for type, val in rhs.items():
-                if type == "String":
-                    rhs_val = val
-                    rego_expressions.append(f'{lhs_val} != "{rhs_val}"')
-                elif type == "Boolean":
-                    rhs_val = val
+                if type == "Boolean":
                     rego_expressions.append(f"not {lhs_val}")
-                elif type == "Variable":
-                    rhs_val = val
-                    rego_expressions.append(f"{lhs_val} != {rhs_val}")
-                elif type == "Integer":
-                    rhs_val = val
+                else:
+                    rhs_val = self.change_data_format(rhs)
                     rego_expressions.append(f"{lhs_val} != {rhs_val}")
         elif "ItemNotInListExpression" in ast_exp:
             lhs = ast_exp["ItemNotInListExpression"]["lhs"]
@@ -367,6 +355,7 @@ class PolicyTranspiler:
             rhs = ast_exp["LessThanOrEqualToExpression"]["rhs"]
             rhs_val = self.change_data_format(rhs)
             rego_expressions.append(f"{lhs_val} <= {rhs_val}")
+        # TODO: NegateExpression
         return rego_expressions, util_funcs
 
     def change_data_format(self, data):
@@ -382,6 +371,10 @@ class PolicyTranspiler:
             return data["Boolean"]
         elif isinstance(data, dict) and "Integer" in data:
             return data["Integer"]
+        elif isinstance(data, dict) and "Float" in data:
+            return data["Float"]
+        elif isinstance(data, dict) and "NullType" in data:
+            return "null"
         else:
             return data
 

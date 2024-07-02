@@ -1,0 +1,18 @@
+---
+- name: in operator test
+  hosts: localhost 
+  vars:
+    sample_list:
+      - val1
+      - val2
+  policies:
+    - name: in operator test
+      target: task
+      condition: 
+        any:
+        - input.test_val not in sample_list
+      actions:
+        - deny:
+            msg: in operator test
+      tags:
+        - security
