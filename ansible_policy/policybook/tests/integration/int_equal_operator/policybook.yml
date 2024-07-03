@@ -8,7 +8,7 @@
         any:
         - input.test_val == 1
       actions:
-        - deny:
+        - allow:
             msg: equal operator test
       tags:
         - security

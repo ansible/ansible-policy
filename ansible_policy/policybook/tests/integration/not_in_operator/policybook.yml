@@ -12,7 +12,7 @@
         any:
         - input.test_val not in sample_list
       actions:
-        - deny:
+        - allow:
             msg: in operator test
       tags:
         - security

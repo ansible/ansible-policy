@@ -12,12 +12,6 @@ __tags__ = ["security"]
 
 sample_list = ["val1", "val2"]
 
-check_item_not_in_list(lhs_list, rhs_list) = true if {
-    array := [item | item := lhs_list[_]; not item in rhs_list]
-    count(array) > 0
-} else = false
-
-
 to_list(val) = output if {
     is_array(val)
     output = val
@@ -29,13 +23,19 @@ to_list(val) = output if {
 }
 
 
+check_item_not_in_list(lhs_list, rhs_list) = true if {
+    array := [item | item := lhs_list[_]; not item in rhs_list]
+    count(array) > 0
+} else = false
+
+
 in_operator_test_0 = true if {
     lhs_list = to_list(input.test_val)
     check_item_not_in_list(lhs_list, sample_list)
 }
 
 
-deny = true if {
+allow = true if {
     in_operator_test_0
     print("in operator test")
 } else = false

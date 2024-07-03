@@ -35,7 +35,7 @@ in_operator_test_0 = true if {
 }
 
 
-deny = true if {
+allow = true if {
     in_operator_test_0
     print("in operator test")
 } else = false

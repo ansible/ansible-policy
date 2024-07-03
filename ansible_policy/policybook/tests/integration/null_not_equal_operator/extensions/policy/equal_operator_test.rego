@@ -16,7 +16,7 @@ equal_operator_test_0 = true if {
 }
 
 
-deny = true if {
+allow = true if {
     equal_operator_test_0
     print("equal operator test")
 } else = false

@@ -38,7 +38,7 @@ def run_rego(rego_path, input_path):
     return result
 
 
-def get_eval_result(output, action="deny"):
+def get_eval_result(output, action="allow"):
     result = output.get("result", [])
     if not result:
         return ValueError("no result found")
@@ -112,6 +112,34 @@ class TestTranspiler:
 
     def test_null_not_equal_operator(self):
         target_dir = os.path.join(test_source_dir, "null_not_equal_operator")
+        input_policybook = os.path.join(target_dir, POLICYBOOK)
+        input_pass = os.path.join(target_dir, INPUT_PASS)
+        input_fail = os.path.join(target_dir, INPUT_FAIL)
+        transpiler.run(input_policybook, target_dir)
+        pattern = f"{target_dir}/**/*.rego"
+        _found = glob.glob(pattern, recursive=True)
+        rego = _found[0]
+        result = get_eval_result(run_rego(rego, input_pass))
+        assert result
+        result = get_eval_result(run_rego(rego, input_fail))
+        assert not result
+
+    def test_multi_condition_any(self):
+        target_dir = os.path.join(test_source_dir, "multi_condition_any")
+        input_policybook = os.path.join(target_dir, POLICYBOOK)
+        input_pass = os.path.join(target_dir, INPUT_PASS)
+        input_fail = os.path.join(target_dir, INPUT_FAIL)
+        transpiler.run(input_policybook, target_dir)
+        pattern = f"{target_dir}/**/*.rego"
+        _found = glob.glob(pattern, recursive=True)
+        rego = _found[0]
+        result = get_eval_result(run_rego(rego, input_pass))
+        assert result
+        result = get_eval_result(run_rego(rego, input_fail))
+        assert not result
+
+    def test_multi_condition_all(self):
+        target_dir = os.path.join(test_source_dir, "multi_condition_all")
         input_policybook = os.path.join(target_dir, POLICYBOOK)
         input_pass = os.path.join(target_dir, INPUT_PASS)
         input_fail = os.path.join(target_dir, INPUT_FAIL)
