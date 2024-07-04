@@ -24,17 +24,25 @@
                     Input: input.first
                   rhs:
                     Integer: 0
-          - OrExpression:
+          - AndExpression:
               lhs:
-                NotEqualsExpression:
+                OrExpression:
                   lhs:
-                    Input: input.second
+                    NotEqualsExpression:
+                      lhs:
+                        Input: input.second
+                      rhs:
+                        Variable: vars_i
                   rhs:
-                    Variable: vars_i
+                    NotEqualsExpression:
+                      lhs:
+                        Input: input.second
+                      rhs:
+                        Integer: 0
               rhs:
                 NotEqualsExpression:
                   lhs:
-                    Input: input.second
+                    Input: input.third
                   rhs:
                     Integer: 0
         enabled: true

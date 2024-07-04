@@ -11,12 +11,17 @@ __tags__ = ["security"]
 
 
 
-equal_operator_test_0 = true if {
+equal_operator_test_0_2 = true if {
     input.test_val == "str_val"
 }
 
 
+equal_operator_test_0_1 = true if {
+    equal_operator_test_0_2
+}
+
+
 allow = true if {
-    equal_operator_test_0
+    equal_operator_test_0_1
     print("equal operator test")
 } else = false

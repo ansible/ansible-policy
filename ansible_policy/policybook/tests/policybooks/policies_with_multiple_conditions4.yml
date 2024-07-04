@@ -9,7 +9,7 @@
       condition:
         all:
           - input.first != vars_i or input.first != 0
-          - input.second != vars_i or input.second != 0
+          - input.second != vars_i or input.second != 0 and input.third != 0
       actions:
         - info: 
             msg: "multiple conditions or"
