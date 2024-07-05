@@ -450,6 +450,22 @@ class ExpressionTranspiler:
     # SelectAttrNotExpression
     # SelectExpression
     # SelectNotExpression
+    simple_expressions = [
+        EqualsExpression,
+        NotEqualsExpression,
+        ItemInListExpression,
+        ItemNotInListExpression,
+        ListContainsItemExpression,
+        ListNotContainsItemExpression,
+        KeyInDictExpression,
+        KeyNotInDictExpression,
+        IsDefinedExpression,
+        IsNotDefinedExpression,
+        LessThanExpression,
+        LessThanOrEqualToExpression,
+        GreaterThanExpression,
+        GreaterThanOrEqualToExpression,
+    ]
 
     def trace_ast_tree(self, condition: dict, policy_name: str, depth=0, counter=None) -> tuple[RegoFunc, list]:
         funcs = []
@@ -536,49 +552,10 @@ class ExpressionTranspiler:
         funcs = []
         used_util_funcs = []
         func_body = ""
-        if self.EqualsExpression.match(condition):
-            used_util_funcs = self.EqualsExpression.util_funcs
-            func_body = self.EqualsExpression.make_rego(func_name, condition)
-        elif self.NotEqualsExpression.match(condition):
-            used_util_funcs = self.NotEqualsExpression.util_funcs
-            func_body = self.NotEqualsExpression.make_rego(func_name, condition)
-        elif self.LessThanExpression.match(condition):
-            used_util_funcs = self.LessThanExpression.util_funcs
-            func_body = self.LessThanExpression.make_rego(func_name, condition)
-        elif self.LessThanOrEqualToExpression.match(condition):
-            used_util_funcs = self.LessThanOrEqualToExpression.util_funcs
-            func_body = self.LessThanOrEqualToExpression.make_rego(func_name, condition)
-        elif self.GreaterThanExpression.match(condition):
-            used_util_funcs = self.GreaterThanExpression.util_funcs
-            func_body = self.GreaterThanExpression.make_rego(func_name, condition)
-        elif self.GreaterThanOrEqualToExpression.match(condition):
-            used_util_funcs = self.GreaterThanOrEqualToExpression.util_funcs
-            func_body = self.GreaterThanOrEqualToExpression.make_rego(func_name, condition)
-        elif self.IsDefinedExpression.match(condition):
-            used_util_funcs = self.IsDefinedExpression.util_funcs
-            func_body = self.IsDefinedExpression.make_rego(func_name, condition)
-        elif self.IsNotDefinedExpression.match(condition):
-            used_util_funcs = self.IsNotDefinedExpression.util_funcs
-            func_body = self.IsNotDefinedExpression.make_rego(func_name, condition)
-        elif self.KeyInDictExpression.match(condition):
-            used_util_funcs = self.KeyInDictExpression.util_funcs
-            func_body = self.KeyInDictExpression.make_rego(func_name, condition)
-        elif self.KeyNotInDictExpression.match(condition):
-            used_util_funcs = self.KeyNotInDictExpression.util_funcs
-            func_body = self.KeyNotInDictExpression.make_rego(func_name, condition)
-        elif self.ItemInListExpression.match(condition):
-            used_util_funcs = self.ItemInListExpression.util_funcs
-            func_body = self.ItemInListExpression.make_rego(func_name, condition)
-        elif self.ItemNotInListExpression.match(condition):
-            used_util_funcs = self.ItemNotInListExpression.util_funcs
-            func_body = self.ItemNotInListExpression.make_rego(func_name, condition)
-        elif self.ListContainsItemExpression.match(condition):
-            used_util_funcs = self.ListContainsItemExpression.util_funcs
-            func_body = self.ListContainsItemExpression.make_rego(func_name, condition)
-        elif self.ListNotContainsItemExpression.match(condition):
-            used_util_funcs = self.ListNotContainsItemExpression.util_funcs
-            func_body = self.ListNotContainsItemExpression.make_rego(func_name, condition)
-
+        for exp in self.simple_expressions:
+            if exp.match(condition):
+                used_util_funcs = exp.util_funcs
+                func_body = exp.make_rego(func_name, condition)
         current_func = RegoFunc(name=func_name, body=func_body, util_funcs=used_util_funcs)
         funcs.append(current_func)
         return current_func, funcs
