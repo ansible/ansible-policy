@@ -7,13 +7,14 @@ import json
 class RegoFunc:
     name: str = ""
     body: str = ""
-    called_util_funcs: List[str] = field(default_factory=list)
+    util_funcs: List[str] = field(default_factory=list)
 
 
 @dataclass
 class RegoPolicy:
     package: str = ""
     import_statements: List[str] = field(default_factory=list)
+    root_condition_func: RegoFunc = field(default_factory=RegoFunc)
     condition_funcs: List[RegoFunc] = field(default_factory=list)
     util_funcs: List[str] = field(default_factory=list)
     action_func: str = ""

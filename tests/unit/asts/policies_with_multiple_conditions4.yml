@@ -1,0 +1,53 @@
+- PolicySet:
+    hosts:
+    - localhost
+    name: Demo rules multiple conditions or
+    policies:
+    - Policy:
+        actions:
+        - Action:
+            action: info
+            action_args:
+              msg: multiple conditions or
+        condition:
+          AllCondition:
+          - OrExpression:
+              lhs:
+                NotEqualsExpression:
+                  lhs:
+                    Input: input.first
+                  rhs:
+                    Variable: vars_i
+              rhs:
+                NotEqualsExpression:
+                  lhs:
+                    Input: input.first
+                  rhs:
+                    Integer: 0
+          - AndExpression:
+              lhs:
+                OrExpression:
+                  lhs:
+                    NotEqualsExpression:
+                      lhs:
+                        Input: input.second
+                      rhs:
+                        Variable: vars_i
+                  rhs:
+                    NotEqualsExpression:
+                      lhs:
+                        Input: input.second
+                      rhs:
+                        Integer: 0
+              rhs:
+                NotEqualsExpression:
+                  lhs:
+                    Input: input.third
+                  rhs:
+                    Integer: 0
+        enabled: true
+        name: multiple conditions
+        tags: []
+        target: task
+    vars:
+      vars_i: 10

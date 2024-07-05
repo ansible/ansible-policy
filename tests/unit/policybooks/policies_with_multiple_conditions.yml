@@ -1,0 +1,15 @@
+---
+- name: Demo policies multiple conditions all
+  hosts: localhost
+  vars:
+    vars_i: 10
+  policies:
+    - name: multiple conditions
+      target: task
+      condition:
+        any:
+          - input.first <= vars_i
+          - input.second > vars_i
+      actions:
+        - info: 
+            msg: "multiple conditions any"

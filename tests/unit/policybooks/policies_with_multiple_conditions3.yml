@@ -1,0 +1,15 @@
+---
+- name: Demo rules multiple conditions and
+  hosts: localhost
+  vars:
+    vars_i: 10
+  policies:
+    - name: multiple conditions
+      target: task
+      condition:
+        all:
+          - input.first != vars_i and input.first != 0
+          -  input.second != vars_i and input.second != 0
+      actions:
+        - info: 
+            msg: "multiple conditions and"

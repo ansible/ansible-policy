@@ -1,0 +1,19 @@
+---
+- name: multi condition any
+  hosts: localhost 
+  vars:
+    sample_list:
+      - val1
+      - val2
+  policies:
+    - name: multi condition any
+      target: task
+      condition: 
+        any:
+        - input.test_val in sample_list
+        - input.test_val2 in sample_list or input.test_val2 == "val2"
+      actions:
+        - allow:
+            msg: multi condition any
+      tags:
+        - security

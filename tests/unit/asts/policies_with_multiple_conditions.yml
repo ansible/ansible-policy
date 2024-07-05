@@ -1,0 +1,29 @@
+- PolicySet:
+    hosts:
+    - localhost
+    name: Demo policies multiple conditions all
+    policies:
+    - Policy:
+        actions:
+        - Action:
+            action: info
+            action_args:
+              msg: multiple conditions any
+        condition:
+          AnyCondition:
+          - LessThanOrEqualToExpression:
+              lhs:
+                Input: input.first
+              rhs:
+                Variable: vars_i
+          - GreaterThanExpression:
+              lhs:
+                Input: input.second
+              rhs:
+                Variable: vars_i
+        enabled: true
+        name: multiple conditions
+        tags: []
+        target: task
+    vars:
+      vars_i: 10

@@ -1,0 +1,14 @@
+---
+- name: equal operator test
+  hosts: localhost 
+  policies:
+    - name: equal operator test
+      target: task
+      condition: 
+        any:
+        - input.test_val != null
+      actions:
+        - allow:
+            msg: equal operator test
+      tags:
+        - security
