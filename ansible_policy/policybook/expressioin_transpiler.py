@@ -442,6 +442,7 @@ class ExpressionTranspiler:
     GreaterThanExpression = GreaterThanExpression()
     GreaterThanOrEqualToExpression = GreaterThanOrEqualToExpression()
     # TODO:
+    # NotAllCondition
     # NegateExpression
     # SearchMatchesExpression
     # SearchNotMatchesExpression
