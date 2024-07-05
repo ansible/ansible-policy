@@ -424,9 +424,6 @@ class LessThanOrEqualToExpression(BaseExpression):
         return super().make_rego(name, condition)
 
 
-# TODO: NegateExpression
-
-
 class ExpressionTranspiler:
     AndAllExpression = AndAllExpression()
     OrAnyExpression = OrAnyExpression()
@@ -444,6 +441,14 @@ class ExpressionTranspiler:
     LessThanOrEqualToExpression = LessThanOrEqualToExpression()
     GreaterThanExpression = GreaterThanExpression()
     GreaterThanOrEqualToExpression = GreaterThanOrEqualToExpression()
+    # TODO:
+    # NegateExpression
+    # SearchMatchesExpression
+    # SearchNotMatchesExpression
+    # SelectAttrExpression
+    # SelectAttrNotExpression
+    # SelectExpression
+    # SelectNotExpression
 
     def trace_ast_tree(self, condition: dict, policy_name: str, depth=0, counter=None) -> tuple[RegoFunc, list]:
         funcs = []
