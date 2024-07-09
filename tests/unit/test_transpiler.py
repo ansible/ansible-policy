@@ -38,10 +38,62 @@ test = true if {
 }
 """
 
+ast_equal_3 = {
+    "EqualsExpression": {
+        "lhs": {"Input": "input.become_user"},
+        "rhs": {"Boolean": True},
+    }
+}
+rego_equal_3 = """
+test = true if {
+    input.become_user
+}
+"""
+
+ast_equal_4 = {
+    "EqualsExpression": {
+        "lhs": {"Input": "input.become_user"},
+        "rhs": {"Boolean": False},
+    }
+}
+rego_equal_4 = """
+test = true if {
+    not input.become_user
+}
+"""
+
+ast_equal_5 = {
+    "EqualsExpression": {
+        "lhs": {"Input": "input.become_user"},
+        "rhs": {"Float": 3.1415},
+    }
+}
+rego_equal_5 = """
+test = true if {
+    input.become_user == 3.1415
+}
+"""
+
+ast_equal_6 = {
+    "EqualsExpression": {
+        "lhs": {"Input": "input.become_user"},
+        "rhs": {"Variable": "var1"},
+    }
+}
+rego_equal_6 = """
+test = true if {
+    input.become_user == var1
+}
+"""
+
 
 def test_Equals():
     assert rego_equal_1 == et.EqualsExpression.make_rego("test", ast_equal_1)
     assert rego_equal_2 == et.EqualsExpression.make_rego("test", ast_equal_2)
+    assert rego_equal_3 == et.EqualsExpression.make_rego("test", ast_equal_3)
+    assert rego_equal_4 == et.EqualsExpression.make_rego("test", ast_equal_4)
+    assert rego_equal_5 == et.EqualsExpression.make_rego("test", ast_equal_5)
+    assert rego_equal_6 == et.EqualsExpression.make_rego("test", ast_equal_6)
 
 
 ##
@@ -112,7 +164,6 @@ def test_ItemInList():
 ##
 # ListContainsItemExpression and ListNotContainsItemExpression
 ##
-# TODO: 本当にregoあっている？？
 ast_ListContainsItem_1 = {
     "ListContainsItemExpression": {
         "lhs": {"Input": "input.mylist"},
@@ -150,7 +201,6 @@ def test_ListContainsItem():
 ##
 # KeyInDictExpression and KeyNotInDictExpression
 ##
-# TODO: 本当にregoあっている？？
 ast_KeyInDict_1 = {
     "KeyInDictExpression": {
         "lhs": {"Input": "input.friends"},

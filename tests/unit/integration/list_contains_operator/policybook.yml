@@ -1,0 +1,16 @@
+---
+- name: list contains test
+  hosts: localhost 
+  vars:
+    sample_list:
+      - val1
+      - val2
+  policies:
+    - name: list contains test
+      target: task
+      condition: sample_list contains input.test_val
+      actions:
+        - allow:
+            msg: list contains test
+      tags:
+        - security

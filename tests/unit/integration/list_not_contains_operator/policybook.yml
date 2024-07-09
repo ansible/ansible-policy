@@ -1,0 +1,16 @@
+---
+- name: list not contains test
+  hosts: localhost 
+  vars:
+    sample_list:
+      - val1
+      - val2
+  policies:
+    - name: list not contains test
+      target: task
+      condition: sample_list not contains input.test_val
+      actions:
+        - allow:
+            msg: list not contains test
+      tags:
+        - security
