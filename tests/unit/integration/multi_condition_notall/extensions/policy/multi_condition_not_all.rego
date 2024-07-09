@@ -1,4 +1,4 @@
-package in_operator_test
+package multi_condition_not_all
 
 
 import future.keywords.if
@@ -29,18 +29,27 @@ check_item_in_list(lhs_list, rhs_list) = true if {
 } else = false
 
 
-in_operator_test_0_2 = true if {
+multi_condition_not_all_1_1 = true if {
     lhs_list = to_list(input.test_val)
     check_item_in_list(lhs_list, sample_list)
 }
 
 
-in_operator_test_0_1 = true if {
-    in_operator_test_0_2
+multi_condition_not_all_1_2 = true if {
+    input.test_val2 == "val2"
+}
+
+
+multi_condition_not_all_0_1 = true if {
+    not multi_condition_not_all_1_1
+}
+
+multi_condition_not_all_0_1 = true if {
+    not multi_condition_not_all_1_2
 }
 
 
 allow = true if {
-    in_operator_test_0_1
-    print("in operator test")
+    multi_condition_not_all_0_1
+    print("multi condition not all")
 } else = false
