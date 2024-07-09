@@ -106,20 +106,18 @@ class OrAnyExpression(BaseExpression):
     def make_rego(self, name, conditions):
         rego_blocks = ""
         for cond in conditions:
-            _steps = join_with_separator(cond, separator="\n    ")
-            rego_blocks = rego_blocks + super().make_rego(name, _steps)
+            rego_blocks = rego_blocks + super().make_rego(name, cond)
         return rego_blocks
 
 
 class NotAllExpression(BaseExpression):
     def match(self, ast_exp):
-        return super().match(ast_exp, "NotAllExpression") or super().match(ast_exp, "NotAllCondition")
+        return super().match(ast_exp, "NotAllCondition")
 
     def make_rego(self, name, conditions):
         rego_blocks = ""
         for cond in conditions:
-            _steps = join_with_separator(cond, separator="\n    ")
-            rego_blocks = rego_blocks + super().make_rego(name, "not " + _steps)
+            rego_blocks = rego_blocks + super().make_rego(name, "not " + cond)
         return rego_blocks
 
 
