@@ -1,0 +1,19 @@
+---
+- name: multi condition not all
+  hosts: localhost 
+  vars:
+    sample_list:
+      - val1
+      - val2
+  policies:
+    - name: multi condition not all
+      target: task
+      condition: 
+        not_all:
+        - input.test_val in sample_list
+        - input.test_val2 == "val2"
+      actions:
+        - allow:
+            msg: multi condition not all
+      tags:
+        - security

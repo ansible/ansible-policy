@@ -335,7 +335,7 @@ def test_LessThan_than():
 
 
 ##
-# OrExpression, AnyCondition, AndExpression, AllCondition
+# OrExpression, AnyCondition, AndExpression, AllCondition, NotAllCondition
 ##
 rego_OrAny = """
 test = true if {
@@ -359,7 +359,22 @@ test = true if {
 }
 """
 
+rego_NotAll = """
+test = true if {
+    not condition1
+}
+
+test = true if {
+    not condition2
+}
+
+test = true if {
+    not condition3
+}
+"""
+
 
 def test_combination():
     assert rego_OrAny == et.OrAnyExpression.make_rego("test", ["condition1", "condition2", "condition3"])
     assert rego_AndAll == et.AndAllExpression.make_rego("test", ["condition1", "condition2", "condition3"])
+    assert rego_NotAll == et.NotAllExpression.make_rego("test", ["condition1", "condition2", "condition3"])

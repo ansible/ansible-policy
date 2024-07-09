@@ -106,8 +106,18 @@ class OrAnyExpression(BaseExpression):
     def make_rego(self, name, conditions):
         rego_blocks = ""
         for cond in conditions:
-            _steps = join_with_separator(cond, separator="\n    ")
-            rego_blocks = rego_blocks + super().make_rego(name, _steps)
+            rego_blocks = rego_blocks + super().make_rego(name, cond)
+        return rego_blocks
+
+
+class NotAllExpression(BaseExpression):
+    def match(self, ast_exp):
+        return super().match(ast_exp, "NotAllCondition")
+
+    def make_rego(self, name, conditions):
+        rego_blocks = ""
+        for cond in conditions:
+            rego_blocks = rego_blocks + super().make_rego(name, "not " + cond)
         return rego_blocks
 
 
@@ -433,6 +443,7 @@ class LessThanOrEqualToExpression(BaseExpression):
 class ExpressionTranspiler:
     AndAllExpression = AndAllExpression()
     OrAnyExpression = OrAnyExpression()
+    NotAllExpression = NotAllExpression()
     EqualsExpression = EqualsExpression()
     NotEqualsExpression = NotEqualsExpression()
     ItemInListExpression = ItemInListExpression()
@@ -448,7 +459,6 @@ class ExpressionTranspiler:
     GreaterThanExpression = GreaterThanExpression()
     GreaterThanOrEqualToExpression = GreaterThanOrEqualToExpression()
     # TODO:
-    # NotAllCondition
     # NegateExpression
     # SearchMatchesExpression
     # SearchNotMatchesExpression
@@ -499,6 +509,8 @@ class ExpressionTranspiler:
             return self.handle_and_all_expression
         elif self.OrAnyExpression.match(condition):
             return self.handle_or_any_expression
+        elif self.NotAllExpression.match(condition):
+            return self.handle_not_all_expression
         else:
             return self.handle_operator_expression
 
@@ -550,6 +562,20 @@ class ExpressionTranspiler:
 
         or_func = self.OrAnyExpression.make_rego(func_name, conditions)
         current_func = RegoFunc(name=func_name, body=or_func)
+        funcs.append(current_func)
+
+        return current_func, funcs
+
+    def handle_not_all_expression(self, condition, func_name, policy_name, depth, counter):
+        funcs = []
+        conditions = []
+        for cond in condition["NotAllCondition"]:
+            root_func, _funcs = self.trace_ast_tree(cond, policy_name, depth + 1, counter)
+            funcs.extend(_funcs)
+            conditions.append(root_func.name)
+
+        and_func = self.NotAllExpression.make_rego(func_name, conditions)
+        current_func = RegoFunc(name=func_name, body=and_func)
         funcs.append(current_func)
 
         return current_func, funcs
