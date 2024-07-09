@@ -121,7 +121,10 @@ class EqualsExpression(BaseExpression):
         rhs = ast_exp["EqualsExpression"]["rhs"]
         for type, val in rhs.items():
             if type == "Boolean":
-                return f"{lhs_val}"
+                if val:
+                    return f"{lhs_val}"
+                else:
+                    return f"not {lhs_val}"
             else:
                 rhs_val = self.change_data_format(rhs)
                 return f"{lhs_val} == {rhs_val}"
@@ -141,7 +144,10 @@ class NotEqualsExpression(BaseExpression):
         rhs = ast_exp["NotEqualsExpression"]["rhs"]
         for type, val in rhs.items():
             if type == "Boolean":
-                return f"{lhs_val}"
+                if val:
+                    return f"not {lhs_val}"
+                else:
+                    return f"{lhs_val}"
             else:
                 rhs_val = self.change_data_format(rhs)
                 return f"{lhs_val} != {rhs_val}"
@@ -206,7 +212,7 @@ class ListContainsItemExpression(BaseExpression):
         """lhs_list = to_list(${lhs})
     check_item_in_list(lhs_list, ${rhs})"""
     )
-    util_funcs = [to_list_func, item_not_in_list_func]
+    util_funcs = [to_list_func, item_in_list_func]
 
     def match(self, ast_exp):
         if "ListContainsItemExpression" in ast_exp:

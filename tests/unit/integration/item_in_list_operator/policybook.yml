@@ -1,0 +1,16 @@
+---
+- name:  item in list test
+  hosts: localhost 
+  vars:
+    sample_list:
+      - val1
+      - val2
+  policies:
+    - name: item in list test
+      target: task
+      condition: input.test_val in sample_list
+      actions:
+        - allow:
+            msg:  item in list test
+      tags:
+        - security

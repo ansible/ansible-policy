@@ -1,0 +1,16 @@
+---
+- name:  item not in list test
+  hosts: localhost 
+  vars:
+    sample_list:
+      - val1
+      - val2
+  policies:
+    - name: item not in list test
+      target: task
+      condition: input.test_val not in sample_list
+      actions:
+        - allow:
+            msg:  item not in list test
+      tags:
+        - security

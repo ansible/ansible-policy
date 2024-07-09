@@ -124,6 +124,62 @@ class TestTranspiler:
         result = get_eval_result(run_rego(rego, input_fail))
         assert not result
 
+    def test_item_in_list_operator(self):
+        target_dir = os.path.join(test_source_dir, "item_in_list_operator")
+        input_policybook = os.path.join(target_dir, POLICYBOOK)
+        input_pass = os.path.join(target_dir, INPUT_PASS)
+        input_fail = os.path.join(target_dir, INPUT_FAIL)
+        transpiler.run(input_policybook, target_dir)
+        pattern = f"{target_dir}/**/*.rego"
+        _found = glob.glob(pattern, recursive=True)
+        rego = _found[0]
+        result = get_eval_result(run_rego(rego, input_pass))
+        assert result
+        result = get_eval_result(run_rego(rego, input_fail))
+        assert not result
+
+    def test_item_not_in_list_operator(self):
+        target_dir = os.path.join(test_source_dir, "item_not_in_list_operator")
+        input_policybook = os.path.join(target_dir, POLICYBOOK)
+        input_pass = os.path.join(target_dir, INPUT_PASS)
+        input_fail = os.path.join(target_dir, INPUT_FAIL)
+        transpiler.run(input_policybook, target_dir)
+        pattern = f"{target_dir}/**/*.rego"
+        _found = glob.glob(pattern, recursive=True)
+        rego = _found[0]
+        result = get_eval_result(run_rego(rego, input_pass))
+        assert result
+        result = get_eval_result(run_rego(rego, input_fail))
+        assert not result
+
+    def test_list_contains_operator(self):
+        target_dir = os.path.join(test_source_dir, "list_contains_operator")
+        input_policybook = os.path.join(target_dir, POLICYBOOK)
+        input_pass = os.path.join(target_dir, INPUT_PASS)
+        input_fail = os.path.join(target_dir, INPUT_FAIL)
+        transpiler.run(input_policybook, target_dir)
+        pattern = f"{target_dir}/**/*.rego"
+        _found = glob.glob(pattern, recursive=True)
+        rego = _found[0]
+        result = get_eval_result(run_rego(rego, input_pass))
+        assert result
+        result = get_eval_result(run_rego(rego, input_fail))
+        assert not result
+
+    def test_list_not_contains_operator(self):
+        target_dir = os.path.join(test_source_dir, "list_not_contains_operator")
+        input_policybook = os.path.join(target_dir, POLICYBOOK)
+        input_pass = os.path.join(target_dir, INPUT_PASS)
+        input_fail = os.path.join(target_dir, INPUT_FAIL)
+        transpiler.run(input_policybook, target_dir)
+        pattern = f"{target_dir}/**/*.rego"
+        _found = glob.glob(pattern, recursive=True)
+        rego = _found[0]
+        result = get_eval_result(run_rego(rego, input_pass))
+        assert result
+        result = get_eval_result(run_rego(rego, input_fail))
+        assert not result
+
     def test_multi_condition_any(self):
         target_dir = os.path.join(test_source_dir, "multi_condition_any")
         input_policybook = os.path.join(target_dir, POLICYBOOK)
