@@ -12,12 +12,6 @@ __tags__ = ["security"]
 
 sample_list = ["val1", "val2"]
 
-check_item_in_list(lhs_list, rhs_list) = true if {
-    array := [item | item := lhs_list[_]; item in rhs_list]
-    count(array) > 0
-} else = false
-
-
 to_list(val) = output if {
     is_array(val)
     output = val
@@ -27,6 +21,12 @@ to_list(val) = output if {
     not is_array(val)
     output = [val]
 }
+
+
+check_item_in_list(lhs_list, rhs_list) = true if {
+    array := [item | item := lhs_list[_]; item in rhs_list]
+    count(array) > 0
+} else = false
 
 
 in_operator_test_0_2 = true if {

@@ -335,6 +335,40 @@ def test_LessThan_than():
 
 
 ##
+# NegateExpression
+##
+ast_Negate_1 = {"NegateExpression": {"Input": "input.friends"}}
+
+rego_Negate_1 = """
+test = true if {
+    not input.friends
+}
+"""
+
+
+def test_Negate():
+    assert rego_Negate_1 == et.NegateExpression.make_rego("test", ast_Negate_1)
+
+
+##
+# AffirmExpression
+##
+# TODO: Change to Class
+ast_Affirm_1 = {"Input": "input.friends"}
+
+rego_Affirm_1 = """
+test = true if {
+    input.friends
+}
+"""
+
+
+def test_Affirm():
+    result, _ = et.handle_non_operator_expression(ast_Affirm_1, "test", "", "", "")
+    assert rego_Affirm_1 == result.body
+
+
+##
 # OrExpression, AnyCondition, AndExpression, AllCondition, NotAllCondition
 ##
 rego_OrAny = """

@@ -1,0 +1,12 @@
+---
+- name: affirm operator test
+  hosts: localhost 
+  policies:
+    - name: affirm operator test
+      target: task
+      condition: input.test_val
+      actions:
+        - allow:
+            msg: affirm operator test
+      tags:
+        - security
