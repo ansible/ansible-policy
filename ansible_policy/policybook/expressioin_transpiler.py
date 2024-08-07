@@ -440,6 +440,19 @@ class LessThanOrEqualToExpression(BaseExpression):
         return super().make_rego(name, condition)
 
 
+class NegateExpression(BaseExpression):
+    def match(self, ast_exp):
+        return super().match(ast_exp, "NegateExpression")
+
+    def make_rego_exp(self, ast_exp):
+        val = self.change_data_format(ast_exp["NegateExpression"])
+        return f"not {val}"
+
+    def make_rego(self, name, ast_exp):
+        condition = self.make_rego_exp(ast_exp)
+        return super().make_rego(name, condition)
+
+
 class ExpressionTranspiler:
     AndAllExpression = AndAllExpression()
     OrAnyExpression = OrAnyExpression()
@@ -458,8 +471,8 @@ class ExpressionTranspiler:
     LessThanOrEqualToExpression = LessThanOrEqualToExpression()
     GreaterThanExpression = GreaterThanExpression()
     GreaterThanOrEqualToExpression = GreaterThanOrEqualToExpression()
+    NegateExpression = NegateExpression()
     # TODO:
-    # NegateExpression
     # SearchMatchesExpression
     # SearchNotMatchesExpression
     # SelectAttrExpression
@@ -481,6 +494,7 @@ class ExpressionTranspiler:
         LessThanOrEqualToExpression,
         GreaterThanExpression,
         GreaterThanOrEqualToExpression,
+        NegateExpression,
     ]
 
     def trace_ast_tree(self, condition: dict, policy_name: str, depth=0, counter=None) -> tuple[RegoFunc, list]:
@@ -501,7 +515,6 @@ class ExpressionTranspiler:
         if handler:
             current_func, _funcs = handler(condition, func_name, policy_name, depth, counter)
             funcs.extend(_funcs)
-
         return current_func, funcs
 
     def get_handler(self, condition):
@@ -511,8 +524,16 @@ class ExpressionTranspiler:
             return self.handle_or_any_expression
         elif self.NotAllExpression.match(condition):
             return self.handle_not_all_expression
-        else:
+        elif self.match_operator_exp(condition):
             return self.handle_operator_expression
+        else:
+            return self.handle_non_operator_expression
+
+    def match_operator_exp(self, condition):
+        for exp in self.simple_expressions:
+            if exp.match(condition):
+                return True
+        return False
 
     def handle_and_all_expression(self, condition, func_name, policy_name, depth, counter):
         funcs = []
@@ -589,6 +610,37 @@ class ExpressionTranspiler:
                 used_util_funcs = exp.util_funcs
                 func_body = exp.make_rego(func_name, condition)
         current_func = RegoFunc(name=func_name, body=func_body, util_funcs=used_util_funcs)
+        funcs.append(current_func)
+        return current_func, funcs
+
+    # TODO: Change to Class
+    def handle_non_operator_expression(self, condition, func_name, policy_name, depth, counter):
+        funcs = []
+        used_util_funcs = []
+        func_body = ""
+        if isinstance(condition, dict) and "String" in condition:
+            func_body = f'"{condition["String"]}"'
+        elif isinstance(condition, dict) and "Input" in condition:
+            func_body = condition["Input"]
+        elif isinstance(condition, dict) and "Variable" in condition:
+            func_body = condition["Variable"]
+        elif isinstance(condition, dict) and "Boolean" in condition:
+            func_body = condition["Boolean"]
+        elif isinstance(condition, dict) and "Integer" in condition:
+            func_body = condition["Integer"]
+        elif isinstance(condition, dict) and "Float" in condition:
+            func_body = condition["Float"]
+        elif isinstance(condition, dict) and "NullType" in condition:
+            func_body = "null"
+        else:
+            func_body = ""
+        rego_block = if_func.safe_substitute(
+            {
+                "func_name": func_name,
+                "steps": func_body,
+            }
+        )
+        current_func = RegoFunc(name=func_name, body=rego_block, util_funcs=used_util_funcs)
         funcs.append(current_func)
         return current_func, funcs
 

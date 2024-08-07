@@ -1,0 +1,12 @@
+---
+- name: is defined operator test
+  hosts: localhost 
+  policies:
+    - name: is defined operator test
+      target: task
+      condition: input.test_val is defined
+      actions:
+        - allow:
+            msg: is defined operator test
+      tags:
+        - security

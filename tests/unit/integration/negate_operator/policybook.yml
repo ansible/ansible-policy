@@ -1,0 +1,12 @@
+---
+- name: negate operator test
+  hosts: localhost 
+  policies:
+    - name: negate operator test
+      target: task
+      condition: not input.test_val
+      actions:
+        - allow:
+            msg: negate operator test
+      tags:
+        - security
