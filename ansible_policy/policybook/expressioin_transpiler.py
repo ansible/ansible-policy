@@ -515,9 +515,6 @@ class ExpressionTranspiler:
         if handler:
             current_func, _funcs = handler(condition, func_name, policy_name, depth, counter)
             funcs.extend(_funcs)
-        print("current_func")
-        print(current_func)
-        print(funcs)
         return current_func, funcs
 
     def get_handler(self, condition):
@@ -530,14 +527,11 @@ class ExpressionTranspiler:
         elif self.match_operator_exp(condition):
             return self.handle_operator_expression
         else:
-            print("handle_non_operator_expression")
             return self.handle_non_operator_expression
 
     def match_operator_exp(self, condition):
         for exp in self.simple_expressions:
-            print(exp)
             if exp.match(condition):
-                print("handle_operator_expression")
                 return True
         return False
 
@@ -640,8 +634,6 @@ class ExpressionTranspiler:
             func_body = "null"
         else:
             func_body = ""
-        print(func_name)
-        print(func_body)
         rego_block = if_func.safe_substitute(
             {
                 "func_name": func_name,
