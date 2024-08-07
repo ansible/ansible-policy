@@ -1,4 +1,4 @@
-package equal_operator_test
+package is_defined_operator_test
 
 
 import future.keywords.if
@@ -28,18 +28,18 @@ to_list(val) = output if {
 }
 
 
-equal_operator_test_1_1 = true if {
+is_defined_operator_test_1_1 = true if {
     input
     input.test_val
 }
 
 
-equal_operator_test_0_1 = true if {
-    equal_operator_test_1_1
+is_defined_operator_test_0_1 = true if {
+    is_defined_operator_test_1_1
 }
 
 
 allow = true if {
-    equal_operator_test_0_1
-    print("equal operator test")
+    is_defined_operator_test_0_1
+    print("is defined operator test")
 } else = false

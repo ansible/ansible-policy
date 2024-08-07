@@ -1,12 +1,12 @@
 ---
-- name: equal operator test
+- name: is defined operator test
   hosts: localhost 
   policies:
-    - name: equal operator test
+    - name: is defined operator test
       target: task
       condition: input.test_val is defined
       actions:
         - allow:
-            msg: equal operator test
+            msg: is defined operator test
       tags:
         - security
