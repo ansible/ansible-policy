@@ -30,8 +30,8 @@ check_item_not_in_list(lhs_list, rhs_list) = true if {
 
 
 select_operator_test_0_2 = true if {
-    array := [item | item := sample_list[_]; not item >= input.test_val]
-    count(array) > 0
+    array := [item | item := sample_list[_]; item >= input.test_val]
+    count(array) == 0
 }
 
 

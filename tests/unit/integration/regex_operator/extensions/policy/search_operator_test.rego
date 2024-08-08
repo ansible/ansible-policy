@@ -12,7 +12,7 @@ __tags__ = ["security"]
 
 
 search_operator_test_0_2 = true if {
-    regex.find_n("v.l", input.test_val, 1) != []
+    regex.find_n(lower("v.l"), lower(input.test_val), 1) != []
 }
 
 

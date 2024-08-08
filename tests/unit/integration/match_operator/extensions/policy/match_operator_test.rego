@@ -12,7 +12,7 @@ __tags__ = ["security"]
 
 
 match_operator_test_0_2 = true if {
-    startswith(input.test_val, "val")
+    startswith(lower(input.test_val), lower("val"))
 }
 
 

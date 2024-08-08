@@ -362,6 +362,62 @@ class TestTranspiler:
         result = get_eval_result(run_rego(rego, input_fail))
         assert not result
 
+    def test_selectattr_search_operator(self):
+        target_dir = os.path.join(test_source_dir, "selectattr_search_operator")
+        input_policybook = os.path.join(target_dir, POLICYBOOK)
+        input_pass = os.path.join(target_dir, INPUT_PASS)
+        input_fail = os.path.join(target_dir, INPUT_FAIL)
+        transpiler.run(input_policybook, target_dir)
+        pattern = f"{target_dir}/**/*.rego"
+        _found = glob.glob(pattern, recursive=True)
+        rego = _found[0]
+        result = get_eval_result(run_rego(rego, input_pass))
+        assert result
+        result = get_eval_result(run_rego(rego, input_fail))
+        assert not result
+
+    def test_selectattr_compare_operator(self):
+        target_dir = os.path.join(test_source_dir, "selectattr_compare_operator")
+        input_policybook = os.path.join(target_dir, POLICYBOOK)
+        input_pass = os.path.join(target_dir, INPUT_PASS)
+        input_fail = os.path.join(target_dir, INPUT_FAIL)
+        transpiler.run(input_policybook, target_dir)
+        pattern = f"{target_dir}/**/*.rego"
+        _found = glob.glob(pattern, recursive=True)
+        rego = _found[0]
+        result = get_eval_result(run_rego(rego, input_pass))
+        assert result
+        result = get_eval_result(run_rego(rego, input_fail))
+        assert not result
+
+    def test_not_selectattr_search_operator(self):
+        target_dir = os.path.join(test_source_dir, "not_selectattr_search_operator")
+        input_policybook = os.path.join(target_dir, POLICYBOOK)
+        input_pass = os.path.join(target_dir, INPUT_PASS)
+        input_fail = os.path.join(target_dir, INPUT_FAIL)
+        transpiler.run(input_policybook, target_dir)
+        pattern = f"{target_dir}/**/*.rego"
+        _found = glob.glob(pattern, recursive=True)
+        rego = _found[0]
+        result = get_eval_result(run_rego(rego, input_pass))
+        assert result
+        result = get_eval_result(run_rego(rego, input_fail))
+        assert not result
+
+    def test_not_selectattr_compare_operator(self):
+        target_dir = os.path.join(test_source_dir, "not_selectattr_compare_operator")
+        input_policybook = os.path.join(target_dir, POLICYBOOK)
+        input_pass = os.path.join(target_dir, INPUT_PASS)
+        input_fail = os.path.join(target_dir, INPUT_FAIL)
+        transpiler.run(input_policybook, target_dir)
+        pattern = f"{target_dir}/**/*.rego"
+        _found = glob.glob(pattern, recursive=True)
+        rego = _found[0]
+        result = get_eval_result(run_rego(rego, input_pass))
+        assert result
+        result = get_eval_result(run_rego(rego, input_fail))
+        assert not result
+
     def test_multi_condition_any(self):
         target_dir = os.path.join(test_source_dir, "multi_condition_any")
         input_policybook = os.path.join(target_dir, POLICYBOOK)

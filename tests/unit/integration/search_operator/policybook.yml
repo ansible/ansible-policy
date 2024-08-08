@@ -6,7 +6,7 @@
       target: task
       condition: 
         any:
-        - input.test_val is search("val", ignorecase=true)
+        - input.test_val is search("Val", ignorecase=true)
       actions:
         - allow:
             msg: search operator test

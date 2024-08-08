@@ -12,7 +12,7 @@ __tags__ = ["security"]
 
 
 search_operator_test_0_2 = true if {
-    contains(input.test_val, "val")
+    contains(lower(input.test_val), lower("Val"))
 }
 
 
