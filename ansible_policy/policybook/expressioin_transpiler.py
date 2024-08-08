@@ -21,8 +21,8 @@ from ansible_policy.policybook.rego_model import RegoFunc
 # rego util funcs
 item_not_in_list_func = """
 check_item_not_in_list(lhs_list, rhs_list) = true if {
-    array := [item | item := lhs_list[_]; not item in rhs_list]
-    count(array) > 0
+    array := [item | item := lhs_list[_]; item in rhs_list]
+    count(array) == 0
 } else = false
 """
 
@@ -453,6 +453,115 @@ class NegateExpression(BaseExpression):
         return super().make_rego(name, condition)
 
 
+# TODO: handle regex (search and match)
+class SearchMatchesExpression(BaseExpression):
+    def match(self, ast_exp):
+        return super().match(ast_exp, "SearchMatchesExpression")
+
+    def make_rego_exp(self, ast_exp):
+        lhs = ast_exp["SearchMatchesExpression"]["lhs"]
+        lhs_val = self.change_data_format(lhs)
+        rhs = ast_exp["SearchMatchesExpression"]["rhs"]["SearchType"]["pattern"]
+        rhs_val = self.change_data_format(rhs)
+        if ast_exp["SearchMatchesExpression"]["rhs"]["SearchType"]["kind"]["String"] == "search":
+            return f"contains({lhs_val}, {rhs_val})"
+        elif ast_exp["SearchMatchesExpression"]["rhs"]["SearchType"]["kind"]["String"] == "match":
+            return f"startswith({lhs_val}, {rhs_val})"
+        elif ast_exp["SearchMatchesExpression"]["rhs"]["SearchType"]["kind"]["String"] == "regex":
+            return f"regex.find_n({rhs_val}, {lhs_val}, 1) != []"
+
+    def make_rego(self, name, ast_exp):
+        condition = self.make_rego_exp(ast_exp)
+        return super().make_rego(name, condition)
+
+
+# TODO: handle regex (search and match)
+class SearchNotMatchesExpression(BaseExpression):
+    def match(self, ast_exp):
+        return super().match(ast_exp, "SearchNotMatchesExpression")
+
+    def make_rego_exp(self, ast_exp):
+        lhs = ast_exp["SearchNotMatchesExpression"]["lhs"]
+        lhs_val = self.change_data_format(lhs)
+        rhs = ast_exp["SearchNotMatchesExpression"]["rhs"]["SearchType"]["pattern"]
+        rhs_val = self.change_data_format(rhs)
+        if ast_exp["SearchNotMatchesExpression"]["rhs"]["SearchType"]["kind"]["String"] == "search":
+            return f"not contains({lhs_val}, {rhs_val})"
+        elif ast_exp["SearchNotMatchesExpression"]["rhs"]["SearchType"]["kind"]["String"] == "match":
+            return f"not startswith({lhs_val}, {rhs_val})"
+        elif ast_exp["SearchNotMatchesExpression"]["rhs"]["SearchType"]["kind"]["String"] == "regex":
+            return f"regex.find_n({rhs_val}, {lhs_val}, 1) == []"
+
+    def make_rego(self, name, ast_exp):
+        condition = self.make_rego_exp(ast_exp)
+        return super().make_rego(name, condition)
+
+
+# TODO: support various pattern
+# now only support "search" and compare
+class SelectExpression(BaseExpression):
+    compare_in_list_template = string.Template(
+        """array := [item | item := ${lhs}[_]; item ${operator} ${rhs}]
+    count(array) > 0"""
+    )
+    template = string.Template(
+        """rhs_list = to_list(${rhs})
+    check_item_in_list(${lhs}, rhs_list)"""
+    )
+    # TODO: remove when type is not search
+    util_funcs = [to_list_func, item_in_list_func]
+
+    def match(self, ast_exp):
+        return super().match(ast_exp, "SelectExpression")
+
+    def make_rego_exp(self, ast_exp):
+        lhs = ast_exp["SelectExpression"]["lhs"]
+        lhs_val = self.change_data_format(lhs)
+        rhs_operator_val = ast_exp["SelectExpression"]["rhs"]["operator"]["String"]
+        rhs_value = ast_exp["SelectExpression"]["rhs"]["value"]
+        rhs_value_val = self.change_data_format(rhs_value)
+        if rhs_operator_val == "search" or rhs_operator_val == "==":
+            return self.template.safe_substitute({"lhs": lhs_val, "rhs": rhs_value_val})
+        elif rhs_operator_val == ">=" or rhs_operator_val == ">" or rhs_operator_val == "<=" or rhs_operator_val == "<":
+            return self.compare_in_list_template.safe_substitute({"lhs": lhs_val, "rhs": rhs_value_val, "operator": rhs_operator_val})
+
+    def make_rego(self, name, ast_exp):
+        condition = self.make_rego_exp(ast_exp)
+        return super().make_rego(name, condition)
+
+
+# TODO: support various pattern (now only support "search" and compare)
+class SelectNotExpression(BaseExpression):
+    compare_not_in_list_template = string.Template(
+        """array := [item | item := ${lhs}[_]; not item ${operator} ${rhs}]
+    count(array) > 0"""
+    )
+    template = string.Template(
+        """rhs_list = to_list(${rhs})
+    check_item_not_in_list(${lhs}, rhs_list)"""
+    )
+    # TODO: remove when type is not search
+    util_funcs = [to_list_func, item_not_in_list_func]
+
+    def match(self, ast_exp):
+        return super().match(ast_exp, "SelectNotExpression")
+
+    def make_rego_exp(self, ast_exp):
+        lhs = ast_exp["SelectNotExpression"]["lhs"]
+        lhs_val = self.change_data_format(lhs)
+        rhs_operator_val = ast_exp["SelectNotExpression"]["rhs"]["operator"]["String"]
+        rhs_value = ast_exp["SelectNotExpression"]["rhs"]["value"]
+        rhs_value_val = self.change_data_format(rhs_value)
+        if rhs_operator_val == "search" or rhs_operator_val == "==":
+            return self.template.safe_substitute({"lhs": lhs_val, "rhs": rhs_value_val})
+        elif rhs_operator_val == ">=" or rhs_operator_val == ">" or rhs_operator_val == "<=" or rhs_operator_val == "<":
+            return self.compare_not_in_list_template.safe_substitute({"lhs": lhs_val, "rhs": rhs_value_val, "operator": rhs_operator_val})
+
+    def make_rego(self, name, ast_exp):
+        condition = self.make_rego_exp(ast_exp)
+        return super().make_rego(name, condition)
+
+
 class ExpressionTranspiler:
     AndAllExpression = AndAllExpression()
     OrAnyExpression = OrAnyExpression()
@@ -472,13 +581,13 @@ class ExpressionTranspiler:
     GreaterThanExpression = GreaterThanExpression()
     GreaterThanOrEqualToExpression = GreaterThanOrEqualToExpression()
     NegateExpression = NegateExpression()
+    SearchMatchesExpression = SearchMatchesExpression()
+    SearchNotMatchesExpression = SearchNotMatchesExpression()
+    SelectExpression = SelectExpression()
+    SelectNotExpression = SelectNotExpression()
     # TODO:
-    # SearchMatchesExpression
-    # SearchNotMatchesExpression
     # SelectAttrExpression
     # SelectAttrNotExpression
-    # SelectExpression
-    # SelectNotExpression
     simple_expressions = [
         EqualsExpression,
         NotEqualsExpression,
@@ -495,6 +604,10 @@ class ExpressionTranspiler:
         GreaterThanExpression,
         GreaterThanOrEqualToExpression,
         NegateExpression,
+        SearchMatchesExpression,
+        SearchNotMatchesExpression,
+        SelectExpression,
+        SelectNotExpression,
     ]
 
     def trace_ast_tree(self, condition: dict, policy_name: str, depth=0, counter=None) -> tuple[RegoFunc, list]:

@@ -1,0 +1,14 @@
+---
+- name: search operator test
+  hosts: localhost
+  policies:
+    - name: search operator test
+      target: task
+      condition: 
+        any:
+        - input.test_val is search("val", ignorecase=true)
+      actions:
+        - allow:
+            msg: search operator test
+      tags:
+        - security

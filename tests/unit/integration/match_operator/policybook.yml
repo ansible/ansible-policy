@@ -1,0 +1,14 @@
+---
+- name: match operator test
+  hosts: localhost
+  policies:
+    - name: match operator test
+      target: task
+      condition: 
+        any:
+        - input.test_val is match("val", ignorecase=true)
+      actions:
+        - allow:
+            msg: match operator test
+      tags:
+        - security
