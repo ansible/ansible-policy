@@ -1,0 +1,18 @@
+---
+- name: select operator test
+  hosts: localhost
+  vars:
+    sample_list:
+      - 10
+      - 20
+  policies:
+    - name: select operator test
+      target: task
+      condition: 
+        any:
+        - sample_list is not select('>=', input.test_val)
+      actions:
+        - allow:
+            msg: select operator test
+      tags:
+        - security
