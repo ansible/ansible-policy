@@ -378,8 +378,10 @@ ast_Search_1 = {
             "SearchType": {
                 "kind": {"String": "search"},
                 "options": [
-                    {"name": {"Boolean": True}},
-                    {"value": {"String": "ignorecase"}},
+                    {
+                        "name": {"String": "ignorecase"},
+                        "value": {"Boolean": True},
+                    },
                 ],
                 "pattern": {"String": "example"},
             }
@@ -389,7 +391,7 @@ ast_Search_1 = {
 
 rego_Search_1 = """
 test = true if {
-    contains(input.range, "example")
+    contains(lower(input.range), lower("example"))
 }
 """
 
@@ -400,8 +402,10 @@ ast_SearchNot_1 = {
             "SearchType": {
                 "kind": {"String": "search"},
                 "options": [
-                    {"name": {"Boolean": True}},
-                    {"value": {"String": "ignorecase"}},
+                    {
+                        "name": {"String": "ignorecase"},
+                        "value": {"Boolean": True},
+                    },
                 ],
                 "pattern": {"String": "example"},
             }
@@ -411,7 +415,7 @@ ast_SearchNot_1 = {
 
 rego_SearchNot_1 = """
 test = true if {
-    not contains(input.range, "example")
+    not contains(lower(input.range), lower("example"))
 }
 """
 
@@ -422,8 +426,10 @@ ast_Match_1 = {
             "SearchType": {
                 "kind": {"String": "match"},
                 "options": [
-                    {"name": {"Boolean": True}},
-                    {"value": {"String": "ignorecase"}},
+                    {
+                        "name": {"String": "ignorecase"},
+                        "value": {"Boolean": True},
+                    },
                 ],
                 "pattern": {"String": "example"},
             }
@@ -433,7 +439,7 @@ ast_Match_1 = {
 
 rego_Match_1 = """
 test = true if {
-    startswith(input.range, "example")
+    startswith(lower(input.range), lower("example"))
 }
 """
 
@@ -444,8 +450,10 @@ ast_MatchNot_1 = {
             "SearchType": {
                 "kind": {"String": "match"},
                 "options": [
-                    {"name": {"Boolean": True}},
-                    {"value": {"String": "ignorecase"}},
+                    {
+                        "name": {"String": "ignorecase"},
+                        "value": {"Boolean": True},
+                    },
                 ],
                 "pattern": {"String": "example"},
             }
@@ -455,7 +463,7 @@ ast_MatchNot_1 = {
 
 rego_MatchNot_1 = """
 test = true if {
-    not startswith(input.range, "example")
+    not startswith(lower(input.range), lower("example"))
 }
 """
 
@@ -466,8 +474,10 @@ ast_Regex_1 = {
             "SearchType": {
                 "kind": {"String": "regex"},
                 "options": [
-                    {"name": {"Boolean": True}},
-                    {"value": {"String": "ignorecase"}},
+                    {
+                        "name": {"String": "ignorecase"},
+                        "value": {"Boolean": True},
+                    },
                 ],
                 "pattern": {"String": "ex*e"},
             }
@@ -477,7 +487,7 @@ ast_Regex_1 = {
 
 rego_Regex_1 = """
 test = true if {
-    regex.find_n("ex*e", input.range, 1) != []
+    regex.find_n(lower("ex*e"), lower(input.range), 1) != []
 }
 """
 
@@ -488,8 +498,10 @@ ast_RegexNot_1 = {
             "SearchType": {
                 "kind": {"String": "regex"},
                 "options": [
-                    {"name": {"Boolean": True}},
-                    {"value": {"String": "ignorecase"}},
+                    {
+                        "name": {"String": "ignorecase"},
+                        "value": {"Boolean": True},
+                    },
                 ],
                 "pattern": {"String": "ex*e"},
             }
@@ -499,7 +511,7 @@ ast_RegexNot_1 = {
 
 rego_RegexNot_1 = """
 test = true if {
-    regex.find_n("ex*e", input.range, 1) == []
+    regex.find_n(lower("ex*e"), lower(input.range), 1) == []
 }
 """
 
@@ -568,8 +580,8 @@ ast_NotSelect_1 = {
 
 rego_NotSelect_1 = """
 test = true if {
-    array := [item | item := input.range[_]; not item >= 10]
-    count(array) > 0
+    array := [item | item := input.range[_]; item >= 10]
+    count(array) == 0
 }
 """
 
@@ -598,6 +610,89 @@ def test_Select():
     assert rego_Select_2 == et.SelectExpression.make_rego("test", ast_Select_2)
     assert rego_NotSelect_1 == et.SelectNotExpression.make_rego("test", ast_NotSelect_1)
     assert rego_NotSelect_2 == et.SelectNotExpression.make_rego("test", ast_NotSelect_2)
+
+
+##
+# SelectAttrExpression and SelectAttrNotExpression
+##
+ast_SelectAttr_1 = {
+    "SelectAttrExpression": {
+        "lhs": {"Input": "input.range"},
+        "rhs": {
+            "key": {"String": "age"},
+            "operator": {"String": ">="},
+            "value": {"Integer": 10},
+        },
+    }
+}
+
+rego_SelectAttr_1 = """
+test = true if {
+    array := [item | item := input.range[_]; object.get(item, ["age"], "none") >= 10]
+    count(array) > 0
+}
+"""
+
+ast_SelectAttr_2 = {
+    "SelectAttrExpression": {
+        "lhs": {"Input": "input.range"},
+        "rhs": {
+            "key": {"String": "age"},
+            "operator": {"String": "search"},
+            "value": {"String": "val"},
+        },
+    }
+}
+
+rego_SelectAttr_2 = """
+test = true if {
+    rhs_list = to_list("val")
+    check_item_key_in_list(input.range, rhs_list, ["age"])
+}
+"""
+
+ast_NotSelectAttr_1 = {
+    "SelectAttrNotExpression": {
+        "lhs": {"Input": "input.range"},
+        "rhs": {
+            "key": {"String": "age"},
+            "operator": {"String": ">="},
+            "value": {"Integer": 10},
+        },
+    }
+}
+
+rego_NotSelectAttr_1 = """
+test = true if {
+    array := [item | item := input.range[_]; object.get(item, ["age"], "none") >= 10]
+    count(array) == 0
+}
+"""
+
+ast_NotSelectAttr_2 = {
+    "SelectAttrNotExpression": {
+        "lhs": {"Input": "input.range"},
+        "rhs": {
+            "key": {"String": "age"},
+            "operator": {"String": "search"},
+            "value": {"String": "val"},
+        },
+    }
+}
+
+rego_NotSelectAttr_2 = """
+test = true if {
+    rhs_list = to_list("val")
+    check_item_key_not_in_list(input.range, rhs_list, ["age"])
+}
+"""
+
+
+def test_SelectAttr():
+    assert rego_SelectAttr_1 == et.SelectAttrExpression.make_rego("test", ast_SelectAttr_1)
+    assert rego_SelectAttr_2 == et.SelectAttrExpression.make_rego("test", ast_SelectAttr_2)
+    assert rego_NotSelectAttr_1 == et.SelectAttrNotExpression.make_rego("test", ast_NotSelectAttr_1)
+    assert rego_NotSelectAttr_2 == et.SelectAttrNotExpression.make_rego("test", ast_NotSelectAttr_2)
 
 
 ##

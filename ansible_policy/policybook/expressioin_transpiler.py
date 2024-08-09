@@ -502,6 +502,10 @@ class SearchNotMatchesExpression(BaseExpression):
         lhs_val = self.change_data_format(lhs)
         rhs = ast_exp["SearchNotMatchesExpression"]["rhs"]["SearchType"]["pattern"]
         rhs_val = self.change_data_format(rhs)
+        for option in ast_exp["SearchNotMatchesExpression"]["rhs"]["SearchType"]["options"]:
+            if option["name"]["String"] == "ignorecase" and option["value"]["Boolean"]:
+                lhs_val = f"lower({lhs_val})"
+                rhs_val = f"lower({rhs_val})"
         if ast_exp["SearchNotMatchesExpression"]["rhs"]["SearchType"]["kind"]["String"] == "search":
             return f"not contains({lhs_val}, {rhs_val})"
         elif ast_exp["SearchNotMatchesExpression"]["rhs"]["SearchType"]["kind"]["String"] == "match":
