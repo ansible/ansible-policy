@@ -33,7 +33,7 @@ logger = init_logger(__name__, os.getenv("ANSIBLE_GK_LOG_LEVEL", "info"))
 
 def validate_opa_installation(executable_name: str = "opa"):
     proc = subprocess.run(
-        f"which {executable_name}",
+        f"command -v {executable_name}",
         shell=True,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
