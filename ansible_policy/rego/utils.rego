@@ -1,8 +1,5 @@
 # util functions that can be imported by rego policies executed from ansible-policy
-
 package ansible_policy
-
-import rego.v1
 
 has_key(x, key) if { _ = x[key] }
 
