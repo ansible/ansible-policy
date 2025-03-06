@@ -13,17 +13,19 @@ Ansible Policy is a prototype implementation which allows us to define and set c
 
 ## Getting started
 
-### 1. Install `opa` command
+### 1. Install `opa` Binary
 
-refer to OPA [document](https://github.com/open-policy-agent/opa#want-to-download-opa)
+Refer to the official ["Running OPA" documentation](https://www.openpolicyagent.org/docs/latest/#running-opa) for initial setup
+
+Add 'opa' executable to your $PATH environment variable, so it is accessible systemwide. `export PATH=$PATH:$PWD/opa`
 
 ### 2. git clone
 
-clone this repository
+Clone this repository
 
-### 3. Install `ansbile-policy` command
+### 3. Install `ansible-policy` command
 
-Ansible Policy requires Python `3.11 or later`. Please install it before this step.
+Ansible Policy requires Python `>3.11`. Please install it before this step.
 
 The following command installs `ansible-policy` command and dependency packages.
 
@@ -35,11 +37,11 @@ $ pip install -e .
 ### 4. Prepare Policybook
 As examples, the following policybooks can be found in the `examples/check_project/policies` directory.
 
--  `check_package_policy` [yml](./examples/check_project/policies/check_pkg.yml): Check if only authorized packages are installed.
-- `check_collection_policy` [yml](./examples/check_project/policies/check_collection.yml): Check if only authorized collections are used
-- `check_become_policy` [yml](./examples/check_project/policies/check_become.yml): check if `become: true` is used and check if only `trusted user` is used
+-  [check_package_policy.yml](./examples/check_project/policies/check_pkg.yml): Check if only authorized packages are installed.
+- [check_collection_policy.yml](./examples/check_project/policies/check_collection.yml): Check if only authorized collections are used
+- [check_become_policy.yml](./examples/check_project/policies/check_become.yml): check if `become: true` is used and check if only `trusted user` is used
 
-ansible-policy transpile these policybooks into OPA policy automatically and evaluate the policies.
+ansible-policy transpiles these policybooks into OPA policy automatically and evaluates the policies against the provided playbooks
 
 See this [doc](./ansible_policy/policybook/README.md) about Policybook specification.
 
@@ -59,9 +61,9 @@ $ ansible-policy -p examples/check_project/playbook.yml --policy-dir examples/ch
 
 From the result, you can see the details on violations.
 
-- [The task "Install Unauthorized App"](examples/check_project/playbook.yml#L32) is installing a package `unauthorized-app` with a root permission by using `become: true`. This is not listed in the allowed packages defined in the policybook [check_package_policy]((examples/check_project/policies/check_pkg.yml)). Also the privilege escalation is detected by the policybook [check_become_policy](examples/check_project/policies/check_become.yml).
+- The task ["Install Unauthorized App"](examples/check_project/playbook.yml#L32) is installing a package `unauthorized-app` with a root permission by using `become: true`. This is not listed in the allowed packages defined in the policybook [check_package_policy](examples/check_project/policies/check_pkg.yml). Also the privilege escalation is detected by the policybook [check_become_policy](examples/check_project/policies/check_become.yml).
 
-- [The task "Set MySQL root password"](examples/check_project/playbook.yml#L38) is using a collection `community.mysql` which is not in the allowed list, and this is detected by the policybook [check_collection_policy](examples/check_project/policies/check_collection.yml).
+- The task ["Set MySQL root password"](examples/check_project/playbook.yml#L38) is using a collection `community.mysql` which is not in the allowed list, and this is detected by the policybook [check_collection_policy](examples/check_project/policies/check_collection.yml).
 
 
 Alternatively, you can output the evaluation result in a JSON format.
