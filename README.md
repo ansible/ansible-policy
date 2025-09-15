@@ -59,7 +59,7 @@ $ ansible-policy -p examples/check_project/playbook.yml --policy-dir examples/ch
 
 From the result, you can see the details on violations.
 
-- [The task "Install Unauthorized App"](examples/check_project/playbook.yml#L32) is installing a package `unauthorized-app` with a root permission by using `become: true`. This is not listed in the allowed packages defined in the policybook [check_package_policy]((examples/check_project/policies/check_pkg.yml)). Also the privilege escalation is detected by the policybook [check_become_policy](examples/check_project/policies/check_become.yml).
+- [The task "Install Unauthorized App"](examples/check_project/playbook.yml#L32) is installing a package `unauthorized-app` with a root permission by using `become: true`. This is not listed in the allowed packages defined in the policybook [check_package_policy](examples/check_project/policies/check_pkg.yml). Also the privilege escalation is detected by the policybook [check_become_policy](examples/check_project/policies/check_become.yml).
 
 - [The task "Set MySQL root password"](examples/check_project/playbook.yml#L38) is using a collection `community.mysql` which is not in the allowed list, and this is detected by the policybook [check_collection_policy](examples/check_project/policies/check_collection.yml).
 
